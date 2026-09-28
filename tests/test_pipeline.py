@@ -415,3 +415,17 @@ def test_code_from_callback_validates_state():
         code_from_callback(params_from_url(url), "other")
     with pytest.raises(LinkedInError, match="abgelehnt"):
         code_from_callback(params_from_url("http://localhost:8765/callback?error=user_cancelled_authorize&state=s3cret"), "s3cret")
+
+
+def test_healthcheck_heartbeat_age(tmp_path):
+    import time
+
+    from linkedin_bot.healthcheck import is_healthy, write_heartbeat
+
+    beat = tmp_path / "heartbeat"
+    assert is_healthy(beat) == (False, "kein Heartbeat")
+    write_heartbeat(beat)
+    assert is_healthy(beat)[0]
+    beat.write_text(str(time.time() - 600))
+    healthy, reason = is_healthy(beat)
+    assert not healthy and "600s" in reason

@@ -15,6 +15,7 @@ from telegram.error import NetworkError
 from telegram.ext import Application, CallbackQueryHandler, CommandHandler, ContextTypes, MessageHandler, filters
 
 from linkedin_bot.config import AppConfig
+from linkedin_bot.healthcheck import HEARTBEAT_INTERVAL_SECONDS, write_heartbeat
 from linkedin_bot.integrations.linkedin import LinkedInClient, LinkedInError, code_from_callback, params_from_url
 from linkedin_bot.nodes.approval import PLACEHOLDER
 from linkedin_bot.runtime import Runtime, Step, current_draft, is_awaiting_approval, pending_steps, outcome_message, render_pending, resume, start_run
@@ -219,6 +220,16 @@ class ApprovalBot:
             self.advance(context.application, resume, thread_id, Decision(action=action, text=update.message.text))
         )
 
+    async def heartbeat(self, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """Für den Docker-Healthcheck: nur schreiben, wenn Telegram und Postgres wirklich antworten."""
+        try:
+            await context.bot.get_me()
+            await asyncio.to_thread(self.repo.ping)
+        except Exception as exc:
+            log.warning("Heartbeat fehlgeschlagen: %s", exc)
+            return
+        write_heartbeat()
+
     async def on_error(self, update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
         if isinstance(context.error, NetworkError):
             # Kurze Netzaussetzer: PTB wiederholt das Polling selbst – kein Traceback nötig.
@@ -253,6 +264,7 @@ class ApprovalBot:
         # Beim Start und dann täglich prüfen
         app.job_queue.run_once(self.check_linkedin_login, when=5)
         app.job_queue.run_once(self.resend_on_startup, when=3)
+        app.job_queue.run_repeating(self.heartbeat, interval=HEARTBEAT_INTERVAL_SECONDS, first=5)
         app.job_queue.run_daily(self.check_linkedin_login, time=time(9, 0, tzinfo=ZoneInfo(schedule.timezone)))
         log.info("Bot läuft – täglicher Lauf %s (%s) an %s", schedule.time, schedule.timezone, ", ".join(schedule.days))
         app.run_polling(allowed_updates=Update.ALL_TYPES)

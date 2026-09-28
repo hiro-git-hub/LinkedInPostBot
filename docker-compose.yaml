@@ -16,6 +16,13 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    healthcheck:
+      # Heartbeat-Datei, die der Bot bei erreichbarem Telegram + Postgres jede Minute schreibt
+      test: ["CMD", "/app/.venv/bin/python", "-m", "linkedin_bot.healthcheck"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
     mem_limit: 512m
 
   postgres:

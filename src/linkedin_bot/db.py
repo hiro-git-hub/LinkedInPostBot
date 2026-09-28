@@ -50,6 +50,7 @@ class Repository(Protocol):
     def save_post(self, thread_id: str, item: NewsItem, text: str, status: str,
                   post_urn: str | None = None, error: str | None = None) -> None: ...
     def get_linkedin_auth(self) -> LinkedInAuth | None: ...
+    def ping(self) -> None: ...
     def save_linkedin_auth(self, auth: LinkedInAuth) -> None: ...
 
 
@@ -107,6 +108,11 @@ class PostgresRepository:
             )
 
 
+    def ping(self) -> None:
+        with self.pool.connection() as conn:
+            conn.execute("SELECT 1")
+
+
 class InMemoryRepository:
     """Für Tests und `linkedin-bot run --no-db`: gleiche Schnittstelle, kein Postgres nötig."""
 
@@ -135,3 +141,6 @@ class InMemoryRepository:
 
     def save_linkedin_auth(self, auth: LinkedInAuth) -> None:
         self.linkedin_auth = auth
+
+    def ping(self) -> None:
+        pass
