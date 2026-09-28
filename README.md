@@ -19,7 +19,7 @@ auch über Tage und Container-Neustarts hinweg.
 ```bash
 uv sync
 cp .env.example .env            # Keys eintragen (OpenAI, Tavily, Telegram)
-docker compose up -d            # Postgres auf localhost:5433
+docker compose -f docker-compose.dev.yml up -d   # Postgres auf localhost:5433
 ```
 
 **Telegram einrichten:** Bei [@BotFather](https://t.me/BotFather) mit `/newbot` einen Bot anlegen → Token als

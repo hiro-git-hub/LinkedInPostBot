@@ -1,4 +1,4 @@
-# Produktion auf Coolify (Build Pack "Docker Compose", Compose-Datei: /docker-compose.coolify.yml).
+# Produktion auf Coolify (Build Pack "Docker Compose", Standard-Pfad /docker-compose.yaml). Lokal: docker-compose.dev.yml
 # ${VAR}-Werte trägt man in Coolify unter "Environment Variables" ein; SERVICE_PASSWORD_* erzeugt Coolify selbst.
 services:
   bot:
