@@ -429,3 +429,38 @@ def test_healthcheck_heartbeat_age(tmp_path):
     beat.write_text(str(time.time() - 600))
     healthy, reason = is_healthy(beat)
     assert not healthy and "600s" in reason
+
+
+def _openai_error(cls, status, code):
+    import openai
+
+    response = openai._base_client.httpx2.Response(status, request=openai._base_client.httpx2.Request("POST", "https://api.openai.com"))
+    return cls("boom", response=response, body={"code": code})
+
+
+@pytest.mark.parametrize(("cls_name", "status", "code", "expected"), [
+    ("AuthenticationError", 401, "invalid_api_key", "API-Key ungültig"),
+    ("RateLimitError", 429, "credit_balance_exhausted", "Guthaben aufgebraucht"),
+    ("RateLimitError", 429, "rate_limit_exceeded", "Rate-Limit"),
+    ("InternalServerError", 500, None, "OpenAI-Fehler (500)"),
+])
+def test_describe_error_openai(cls_name, status, code, expected):
+    import openai
+
+    from linkedin_bot.errors import describe_error
+
+    cause = _openai_error(getattr(openai, cls_name), status, code)
+    try:
+        try:
+            raise cause
+        except Exception as inner:
+            raise RuntimeError("wrapped by langchain") from inner
+    except RuntimeError as outer:
+        assert expected in describe_error(outer)
+
+
+def test_describe_error_fallback_and_linkedin():
+    from linkedin_bot.errors import describe_error
+
+    assert "LinkedIn: Post erstellen" in describe_error(LinkedInError("Post erstellen fehlgeschlagen (403)"))
+    assert describe_error(ValueError("x")) == "Unerwarteter Fehler (ValueError) – Details im Log."

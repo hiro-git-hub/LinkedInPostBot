@@ -15,6 +15,7 @@ from telegram.error import NetworkError
 from telegram.ext import Application, CallbackQueryHandler, CommandHandler, ContextTypes, MessageHandler, filters
 
 from linkedin_bot.config import AppConfig
+from linkedin_bot.errors import describe_error
 from linkedin_bot.healthcheck import HEARTBEAT_INTERVAL_SECONDS, write_heartbeat
 from linkedin_bot.integrations.linkedin import LinkedInClient, LinkedInError, code_from_callback, params_from_url
 from linkedin_bot.nodes.approval import PLACEHOLDER
@@ -65,9 +66,9 @@ class ApprovalBot:
         async with self.lock:
             try:
                 step: Step = await asyncio.to_thread(fn, self.graph, *args)
-            except Exception:
+            except Exception as exc:
                 log.exception("Graph-Lauf fehlgeschlagen")
-                await app.bot.send_message(self.chat_id, "💥 Der Lauf ist fehlgeschlagen – Details im Log.")
+                await app.bot.send_message(self.chat_id, f"💥 Lauf fehlgeschlagen.\n{describe_error(exc)}")
                 return
         await self.deliver(app, step)
 
