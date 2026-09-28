@@ -1,0 +1,5 @@
+{
+  "dependencies": ["."],
+  "graphs": {"linkedin_bot": "./src/linkedin_bot/runtime.py:studio_graph"},
+  "env": ".env"
+}

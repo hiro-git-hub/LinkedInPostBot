@@ -1,0 +1,63 @@
+# Wen willst du mit deinen Posts erreichen? Fließt in Scorer und Writer ein.
+audience: >
+  Unternehmer:innen, Entscheider:innen, Tech-Leads und Entwickler:innen im DACH-Mittelstand,
+  die wissen wollen, wie KI Softwareentwicklung und E-Commerce konkret verändert.
+
+# Themenrahmen für den Scorer: nur was hier reinpasst, wird hoch bewertet.
+topics: |
+  - KI in der Softwareentwicklung (Coding-Agents, Vibe Coding, KI-gestützte Workflows, Dev-Tools)
+  - KI im E-Commerce (Shops, Suche, Personalisierung, KI-Shopping-Agents, Sichtbarkeit in KI-Antworten)
+  - Übergreifende Entwicklungen und Tendenzen an dieser Schnittstelle (neue Modelle mit Praxisfolgen,
+    verändertes Nutzerverhalten, Marktverschiebungen, Regulierung wie der AI Act, sofern sie Entwicklung oder Handel betrifft)
+language: de
+
+# Modelle pro Rolle – Format "provider:model" (siehe langchain init_chat_model).
+# Weitere Keys (z.B. reasoning_effort, temperature) werden direkt ans Modell durchgereicht.
+# Hinweis: GPT-5-Reasoning-Modelle akzeptieren kein temperature – daher hier weggelassen.
+models:
+  scorer: {model: "openai:gpt-5-mini", reasoning_effort: low}
+  selector: {model: "openai:gpt-5-mini", reasoning_effort: low}
+  researcher: {model: "openai:gpt-5-mini", reasoning_effort: low}
+  writer: {model: "openai:gpt-5", reasoning_effort: medium}
+  critic: {model: "openai:gpt-5", reasoning_effort: low}
+
+sources:
+  # Anthropic & LangChain haben keinen funktionierenden Feed – werden über die Web-Recherche abgedeckt.
+  rss:
+    - https://openai.com/news/rss.xml
+    - https://blog.google/technology/ai/rss/
+    - https://huggingface.co/blog/feed.xml
+    - https://github.blog/feed/
+    - https://simonwillison.net/atom/everything/
+    - https://www.heise.de/developer/rss/news-atom.xml
+    - https://t3n.de/rss.xml
+  hackernews:
+    min_points: 150
+    lookback_hours: 24
+
+limits:
+  max_age_hours: 48     # ältere RSS-Einträge werden verworfen
+  max_items_to_score: 40
+  min_relevance: 6      # darunter wird kein Post geschrieben
+  shortlist_size: 5     # so viele Top-Themen bekommt der Selector zur Auswahl
+
+# Täglicher Lauf im `linkedin-bot serve`-Modus
+schedule:
+  time: "07:30"
+  timezone: Europe/Berlin
+  days: [mon, tue, wed, thu, fri]
+
+linkedin:
+  # true = freigegebene Posts werden nur archiviert, nicht veröffentlicht. Erst nach dem ersten Test auf false setzen.
+  dry_run: false
+  api_version: "202609"   # LinkedIn-Version: YYYYMM, jede Version wird ca. 1 Jahr unterstützt
+  visibility: PUBLIC      # oder CONNECTIONS
+  remind_days_before_expiry: 7
+
+research:
+  max_tool_calls: 5     # Web-Suchen + Seitenabrufe pro Recherche
+
+writing:
+  min_chars: 900
+  max_chars: 1800
+  max_revisions: 2      # so oft darf der Critic den Entwurf zurückschicken

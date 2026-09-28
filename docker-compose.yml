@@ -1,0 +1,18 @@
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: bot
+      POSTGRES_PASSWORD: bot
+      POSTGRES_DB: linkedin_bot
+    ports:
+      - "5433:5432"   # 5433, um lokale Postgres-Installationen nicht zu stören
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bot -d linkedin_bot"]
+      interval: 5s
+      retries: 10
+
+volumes:
+  pgdata:

@@ -1,0 +1,37 @@
+# Produktion auf Coolify (Build Pack "Docker Compose", Compose-Datei: /docker-compose.coolify.yml).
+# ${VAR}-Werte trägt man in Coolify unter "Environment Variables" ein; SERVICE_PASSWORD_* erzeugt Coolify selbst.
+services:
+  bot:
+    build: .
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://bot:${SERVICE_PASSWORD_POSTGRES}@postgres:5432/linkedin_bot
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      TAVILY_API_KEY: ${TAVILY_API_KEY}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID}
+      LINKEDIN_CLIENT_ID: ${LINKEDIN_CLIENT_ID}
+      LINKEDIN_CLIENT_SECRET: ${LINKEDIN_CLIENT_SECRET}
+      LINKEDIN_REDIRECT_URI: ${LINKEDIN_REDIRECT_URI:-http://localhost:8765/callback}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    mem_limit: 512m
+
+  postgres:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: bot
+      POSTGRES_PASSWORD: ${SERVICE_PASSWORD_POSTGRES}
+      POSTGRES_DB: linkedin_bot
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bot -d linkedin_bot"]
+      interval: 5s
+      retries: 10
+    mem_limit: 256m
+
+volumes:
+  pgdata:
