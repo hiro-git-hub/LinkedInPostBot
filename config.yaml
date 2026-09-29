@@ -45,19 +45,20 @@ sources:
     - https://t3n.de/rss.xml
   hackernews:
     min_points: 150
-    lookback_hours: 24
+    lookback_hours: 108   # deckt die längste Lücke zwischen zwei geplanten Läufen ab (Mi -> So)
 
 limits:
-  max_age_hours: 48     # ältere RSS-Einträge werden verworfen
-  max_items_to_score: 40
+  max_age_hours: 108    # ältere RSS-Einträge werden verworfen – passend zum Abstand der Läufe
+  max_items_to_score: 60
   min_relevance: 6      # darunter wird kein Post geschrieben
   shortlist_size: 5     # so viele Top-Themen bekommt der Selector zur Auswahl
 
-# Täglicher Lauf im `linkedin-bot serve`-Modus
+# Geplante Läufe im `linkedin-bot serve`-Modus (Tage: mon, tue, wed, thu, fri, sat, sun)
 schedule:
-  time: "07:30"
   timezone: Europe/Berlin
-  days: [mon, tue, wed, thu, fri]
+  runs:
+    - {day: wed, time: "09:00"}
+    - {day: sun, time: "18:00"}
 
 linkedin:
   # true = freigegebene Posts werden nur archiviert, nicht veröffentlicht. Erst nach dem ersten Test auf false setzen.

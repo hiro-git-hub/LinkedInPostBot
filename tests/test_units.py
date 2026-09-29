@@ -156,3 +156,10 @@ def test_describe_error_fallback_and_linkedin():
 
     assert "LinkedIn: Post erstellen" in describe_error(LinkedInError("Post erstellen fehlgeschlagen (403)"))
     assert describe_error(ValueError("x")) == "Unerwarteter Fehler (ValueError) – Details im Log."
+
+
+def test_schedule_config_runs():
+    from linkedin_bot.config import load_config
+
+    runs = [(r.day, r.time) for r in load_config().schedule.runs]
+    assert runs == [("wed", "09:00"), ("sun", "18:00")]

@@ -1,4 +1,4 @@
-"""Long-Polling-Bot: schickt Entwürfe zur Freigabe und startet den täglichen Lauf.
+"""Long-Polling-Bot: schickt Entwürfe zur Freigabe und startet die geplanten Läufe.
 
 Kein Webhook -> keine öffentliche URL nötig, läuft lokal wie im Container.
 """
@@ -286,16 +286,15 @@ class ApprovalBot:
             return
 
         schedule = self.cfg.schedule
-        hour, minute = map(int, schedule.time.split(":"))
-        app.job_queue.run_daily(
-            self.scheduled_run,
-            time=time(hour, minute, tzinfo=ZoneInfo(schedule.timezone)),
-            days=tuple(WEEKDAYS[d] for d in schedule.days),
-        )
+        tz = ZoneInfo(schedule.timezone)
+        for run in schedule.runs:
+            hour, minute = map(int, run.time.split(":"))
+            app.job_queue.run_daily(self.scheduled_run, time=time(hour, minute, tzinfo=tz), days=(WEEKDAYS[run.day],))
         # Beim Start und dann täglich prüfen
         app.job_queue.run_once(self.check_linkedin_login, when=5)
         app.job_queue.run_once(self.resend_on_startup, when=3)
         app.job_queue.run_repeating(self.heartbeat, interval=HEARTBEAT_INTERVAL_SECONDS, first=5)
-        app.job_queue.run_daily(self.check_linkedin_login, time=time(9, 0, tzinfo=ZoneInfo(schedule.timezone)))
-        log.info("Bot läuft – täglicher Lauf %s (%s) an %s", schedule.time, schedule.timezone, ", ".join(schedule.days))
+        app.job_queue.run_daily(self.check_linkedin_login, time=time(9, 0, tzinfo=tz))
+        log.info("Bot läuft – geplante Läufe (%s): %s", schedule.timezone,
+                 ", ".join(f"{r.day} {r.time}" for r in schedule.runs))
         app.run_polling(allowed_updates=Update.ALL_TYPES)

@@ -82,7 +82,7 @@ def main() -> None:
     run.add_argument("--no-db", action="store_true", help="Ohne Postgres (kein Dedup über Tage, nichts wird gespeichert)")
     run.set_defaults(func=run_console)
 
-    commands.add_parser("serve", help="Telegram-Bot + täglicher Zeitplan").set_defaults(func=serve)
+    commands.add_parser("serve", help="Telegram-Bot + geplante Läufe").set_defaults(func=serve)
     commands.add_parser("linkedin-login", help="Bei LinkedIn anmelden (alle 60 Tage nötig)").set_defaults(func=linkedin_login_cmd)
 
     args = parser.parse_args()

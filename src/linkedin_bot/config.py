@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Literal
 
 import yaml
 from pydantic import BaseModel, Field
@@ -39,10 +40,16 @@ class WritingConfig(BaseModel):
     max_revisions: int = 2
 
 
+class ScheduledRun(BaseModel):
+    day: Literal["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
+    time: str  # "HH:MM"
+
+
 class ScheduleConfig(BaseModel):
-    time: str = "07:30"
     timezone: str = "Europe/Berlin"
-    days: list[str] = Field(default_factory=lambda: ["mon", "tue", "wed", "thu", "fri"])
+    runs: list[ScheduledRun] = Field(default_factory=lambda: [
+        ScheduledRun(day="wed", time="09:00"), ScheduledRun(day="sun", time="18:00"),
+    ])
 
 
 class LinkedInConfig(BaseModel):

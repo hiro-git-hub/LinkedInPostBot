@@ -37,7 +37,7 @@ Client ID/Secret in die `.env`. Dann lokal `uv run linkedin-bot linkedin-login` 
 ## Nutzung
 
 ```bash
-uv run linkedin-bot serve         # Telegram-Bot + täglicher Lauf laut config.yaml (schedule)
+uv run linkedin-bot serve         # Telegram-Bot + geplante Läufe laut config.yaml (schedule.runs)
 uv run linkedin-bot run           # ein Lauf im Terminal, Freigabe per Tastatur
 uv run linkedin-bot run --no-db   # dito ohne Postgres (kein Dedup über Tage)
 uv run linkedin-bot linkedin-login   # LinkedIn-Anmeldung (alle 60 Tage)
