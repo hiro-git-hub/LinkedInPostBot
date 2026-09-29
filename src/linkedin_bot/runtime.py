@@ -161,8 +161,12 @@ def outcome_message(state: dict) -> str:
     """Abschlussmeldung eines Laufs – gemeinsam für Konsole und Telegram."""
     status = state.get("status")
     if status == "published":
-        return (f"✅ Veröffentlicht: {post_url(state['post_urn'])}\n\n"
-                f"Quelle für den ersten Kommentar:\n{state['selected'].item.url}")
+        message = f"✅ Veröffentlicht: {post_url(state['post_urn'])}"
+        if state.get("source_commented"):
+            return message + "\n💬 Quelle als erster Kommentar gepostet."
+        reason = f" ({state['comment_error']})" if state.get("comment_error") else ""
+        return (message + f"\n\n⚠️ Quell-Kommentar nicht automatisch möglich{reason}.\n"
+                f"Bitte selbst als ersten Kommentar posten:\n{state['selected'].item.url}")
     if status == "approved":
         return "✅ Freigegeben und archiviert (Dry-Run – nicht auf LinkedIn veröffentlicht)."
     if status == "publish_failed":

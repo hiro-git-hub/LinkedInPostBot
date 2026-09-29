@@ -132,3 +132,5 @@ class State(TypedDict, total=False):
     status: Literal["published", "approved", "publish_failed", "rejected"]
     post_urn: str | None
     publish_error: str | None
+    source_commented: bool
+    comment_error: str | None  # Post ist online, nur der Quell-Kommentar hat nicht geklappt

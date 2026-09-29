@@ -57,6 +57,7 @@ class LinkedInConfig(BaseModel):
     api_version: str = "202609"
     visibility: str = "PUBLIC"
     remind_days_before_expiry: int = 7
+    comment_source: bool = True  # Quell-Link automatisch als ersten Kommentar posten
 
 
 class ImagesConfig(BaseModel):

@@ -165,9 +165,15 @@ def test_pending_steps_lists_only_waiting_threads(cfg, sources):
 # --- Veröffentlichung ------------------------------------------------------------------------------
 
 class FakeLinkedIn:
-    def __init__(self, error: Exception | None = None):
-        self.error = error
+    def __init__(self, error: Exception | None = None, comment_error: Exception | None = None):
+        self.error, self.comment_error = error, comment_error
         self.posts: list[dict] = []
+        self.comments: list[tuple[str, str]] = []
+
+    def comment(self, auth, post_urn, text):
+        if self.comment_error:
+            raise self.comment_error
+        self.comments.append((post_urn, text))
 
     def create_post(self, auth, text, hashtags=None, image=None, alt_text="", visibility="PUBLIC"):
         if self.error:
@@ -205,6 +211,22 @@ def test_publish_sends_variant_hashtags_and_image(cfg, sources):
     post = repo.posts[0]
     assert (post["post_urn"], post["variant"], post["has_image"]) == ("urn:li:share:123", "humor", True)
     assert repo.recent_topics(7) == ["Neues Modell veröffentlicht"]
+    assert linkedin.comments == [("urn:li:share:123", "Quelle: https://example.com/model")]
+    assert step.state["source_commented"] is True
+
+
+def test_failed_source_comment_keeps_post_published(cfg, sources):
+    from linkedin_bot.runtime import outcome_message
+
+    cfg.linkedin.dry_run = False
+    repo = InMemoryRepository()
+    repo.save_linkedin_auth(valid_auth())
+    linkedin = FakeLinkedIn(comment_error=LinkedInError("Kommentar erstellen fehlgeschlagen (403)"))
+    step = run_and_approve(cfg, repo, linkedin)
+
+    assert step.state["status"] == "published"
+    message = outcome_message(step.state)
+    assert "403" in message and "https://www.example.com/model/" in message
 
 
 @pytest.mark.parametrize("auth", [None, valid_auth(days=-1)], ids=["missing", "expired"])

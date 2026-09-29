@@ -5,7 +5,7 @@ import httpx
 import pytest
 import respx
 
-from linkedin_bot.integrations.linkedin import IMAGES_URL, POSTS_URL, TOKEN_URL, USERINFO_URL, LinkedInAuth, LinkedInClient, LinkedInError, escape_little
+from linkedin_bot.integrations.linkedin import COMMENTS_URL, IMAGES_URL, POSTS_URL, TOKEN_URL, USERINFO_URL, LinkedInAuth, LinkedInClient, LinkedInError, escape_little
 from linkedin_bot.nodes.dedup import dedupe, normalize_url
 from linkedin_bot.nodes.rules import rule_issues
 from linkedin_bot.state import NewsItem
@@ -163,3 +163,12 @@ def test_schedule_config_runs():
 
     runs = [(r.day, r.time) for r in load_config().schedule.runs]
     assert runs == [("wed", "09:00"), ("sun", "18:00")]
+
+
+@respx.mock
+def test_linkedin_client_comment_request(linkedin_env):
+    route = respx.post(COMMENTS_URL.format(urn="urn%3Ali%3Ashare%3A9")).mock(return_value=httpx.Response(201))
+    LinkedInClient("202609").comment(valid_auth(), "urn:li:share:9", "Quelle: https://example.com")
+    assert json.loads(route.calls.last.request.content) == {
+        "actor": "urn:li:person:abc", "object": "urn:li:share:9", "message": {"text": "Quelle: https://example.com"},
+    }

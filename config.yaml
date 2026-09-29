@@ -68,6 +68,7 @@ linkedin:
   api_version: "202609"   # LinkedIn-Version: YYYYMM, jede Version wird ca. 1 Jahr unterstützt
   visibility: PUBLIC      # oder CONNECTIONS
   remind_days_before_expiry: 7
+  comment_source: true    # Quell-Link automatisch als ersten Kommentar posten ("Link in den Kommentaren")
 
 research:
   max_tool_calls: 5     # Web-Suchen + Seitenabrufe pro Recherche

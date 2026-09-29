@@ -4,7 +4,7 @@ import os
 import re
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
-from urllib.parse import parse_qs, urlencode, urlsplit
+from urllib.parse import parse_qs, quote, urlencode, urlsplit
 
 import httpx
 
@@ -13,6 +13,7 @@ TOKEN_URL = "https://www.linkedin.com/oauth/v2/accessToken"
 USERINFO_URL = "https://api.linkedin.com/v2/userinfo"
 POSTS_URL = "https://api.linkedin.com/rest/posts"
 IMAGES_URL = "https://api.linkedin.com/rest/images?action=initializeUpload"
+COMMENTS_URL = "https://api.linkedin.com/rest/socialActions/{urn}/comments"
 SCOPES = "openid profile w_member_social"
 DEFAULT_REDIRECT_URI = "http://localhost:8765/callback"
 
@@ -141,6 +142,15 @@ class LinkedInClient:
         response = self.http.post(POSTS_URL, headers=self._headers(auth), json=body)
         self._raise_for_status(response, "Post erstellen")
         return response.headers["x-restli-id"]
+
+    def comment(self, auth: LinkedInAuth, post_urn: str, text: str) -> None:
+        """Kommentar unter einem eigenen Post – z.B. der Quell-Link ("Link in den Kommentaren")."""
+        response = self.http.post(
+            COMMENTS_URL.format(urn=quote(post_urn, safe="")),
+            headers=self._headers(auth),
+            json={"actor": auth.person_urn, "object": post_urn, "message": {"text": text}},
+        )
+        self._raise_for_status(response, "Kommentar erstellen")
 
     @staticmethod
     def _raise_for_status(response: httpx.Response, step: str) -> None:

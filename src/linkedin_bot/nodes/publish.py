@@ -6,6 +6,7 @@ from langchain_core.runnables import RunnableConfig
 from linkedin_bot.config import AppConfig
 from linkedin_bot.db import Repository
 from linkedin_bot.integrations.linkedin import LinkedInClient, LinkedInError
+from linkedin_bot.nodes.dedup import normalize_url
 from linkedin_bot.state import State
 
 log = logging.getLogger(__name__)
@@ -24,9 +25,10 @@ def make_publisher(cfg: AppConfig, repo: Repository, client: LinkedInClient | No
 
         image_prompt = state.get("image_prompt")
         image = repo.get_image(config["configurable"]["thread_id"]) if image_prompt else None
+        # Erst hier erzeugen: im Dry-Run braucht es keine LinkedIn-Credentials.
+        linkedin = client or LinkedInClient(cfg.linkedin.api_version)
         try:
-            # Erst hier erzeugen: im Dry-Run braucht es keine LinkedIn-Credentials.
-            urn = (client or LinkedInClient(cfg.linkedin.api_version)).create_post(
+            urn = linkedin.create_post(
                 auth,
                 state["drafts"][state["variant"]].text,
                 hashtags=state.get("hashtags") or [],
@@ -37,6 +39,17 @@ def make_publisher(cfg: AppConfig, repo: Repository, client: LinkedInClient | No
         except (LinkedInError, httpx.HTTPError) as exc:
             log.exception("Veröffentlichung fehlgeschlagen")
             return {"status": "publish_failed", "post_urn": None, "publish_error": str(exc)}
-        return {"status": "published", "post_urn": urn, "publish_error": None}
+
+        result = {"status": "published", "post_urn": urn, "publish_error": None,
+                  "source_commented": False, "comment_error": None}
+        if cfg.linkedin.comment_source:
+            try:
+                linkedin.comment(auth, urn, f"Quelle: {normalize_url(state['selected'].item.url)}")  # ohne utm_-Tracking
+                result["source_commented"] = True
+            except (LinkedInError, httpx.HTTPError) as exc:
+                # Der Post ist online – ein fehlender Kommentar ist kein Grund, ihn als fehlgeschlagen zu werten.
+                log.warning("Quell-Kommentar fehlgeschlagen: %s", exc)
+                result["comment_error"] = str(exc)
+        return result
 
     return publish_node
