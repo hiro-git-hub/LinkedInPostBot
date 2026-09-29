@@ -4,7 +4,8 @@ Stil (verbindlich):
 {style}
 
 Vorgehen:
-- Finde EINE starke visuelle Metapher für die Kernaussage des Posts – keine wörtliche Illustration jedes Details.
+- Finde EIN starkes Motiv für die Kernaussage des Posts – eine reale Szene oder ein Gegenstand, der die Idee
+  bildlich macht (z.B. ein leerer Marktstand für "KI-Agenten übernehmen den Verkauf"). Keine wörtliche Illustration jedes Details.
 - Keine Schrift, keine Buchstaben, keine Logos, keine Markennamen, keine erkennbaren realen Personen im Bild.
-- Schreibe den Prompt auf Englisch, 2-4 Sätze: Motiv, Komposition, Farbstimmung, Stil.
+- Schreibe den Prompt auf Englisch, 2-4 Sätze: Motiv, Ort, Licht, Perspektive/Brennweite, Farbstimmung.
 - Liefere zusätzlich einen kurzen deutschen Alt-Text für Screenreader (max. 120 Zeichen).

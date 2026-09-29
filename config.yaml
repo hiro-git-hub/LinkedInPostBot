@@ -29,9 +29,11 @@ images:
   size: 1536x1024
   quality: medium          # low | medium | high – beeinflusst die Kosten deutlich
   style: >
-    Moderne Editorial-Illustration wie in einem hochwertigen Tech-Magazin: klare Formen, flächige Farben mit
-    leichten Verläufen, eine zentrale visuelle Metapher, viel Weißraum, ruhige Palette aus Petrol, Sand und
-    einem Akzent in Korallenrot. Keine Schrift im Bild.
+    Fotorealistisch im Stil hochwertiger Editorial-Fotografie (Wirtschafts- oder Tech-Magazin): echte Orte und
+    Gegenstände, natürliches Licht, geringe Schärfentiefe, dezente, leicht entsättigte Farben, dokumentarische
+    Anmutung. Keine gestellten Stockfoto-Szenen, keine in die Kamera lächelnden Menschen, keine Hologramme,
+    kein Neon-Sci-Fi-Look, keine leuchtenden Gehirne oder Roboterhände. Menschen höchstens angeschnitten oder
+    von hinten. Keine Schrift, keine Bildschirme mit lesbarem Text.
 
 sources:
   # Anthropic & LangChain haben keinen funktionierenden Feed – werden über die Web-Recherche abgedeckt.

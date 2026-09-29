@@ -63,7 +63,7 @@ class ImagesConfig(BaseModel):
     model: str = "gpt-image-1"
     size: str = "1536x1024"
     quality: str = "medium"
-    style: str = "Moderne Editorial-Illustration, eine visuelle Metapher, keine Schrift im Bild."
+    style: str = "Fotorealistische Editorial-Fotografie, natürliches Licht, keine Schrift im Bild."
 
 
 class AppConfig(BaseModel):
