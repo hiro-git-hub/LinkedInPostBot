@@ -1,5 +1,7 @@
 import argparse
 import logging
+import tempfile
+from pathlib import Path
 
 from dotenv import load_dotenv
 
@@ -7,7 +9,9 @@ from linkedin_bot.config import load_config
 from linkedin_bot.runtime import Step, open_runtime, outcome_message, render_pending, resume, start_run
 from linkedin_bot.state import Decision
 
-CONSOLE_ACTIONS = {"f": "approve", "b": "edit", "u": "revise", "t": "new_topic", "v": "reject"}
+# Erster Buchstabe = Aktion, zweiter (n/h) = Variante für freigeben/bearbeiten/überarbeiten
+CONSOLE_ACTIONS = {"f": "approve", "b": "edit", "u": "revise", "i": "image", "x": "no_image", "t": "new_topic", "v": "reject"}
+VARIANT_KEYS = {"n": "normal", "h": "humor"}
 
 
 def print_candidates(step: Step, top: int) -> None:
@@ -19,14 +23,21 @@ def print_candidates(step: Step, top: int) -> None:
 
 
 def ask_decision() -> Decision:
+    prompt = ("\n[fn/fh] freigeben  [bn/bh] bearbeiten  [un/uh] überarbeiten lassen (n=Normal, h=Humor)\n"
+              "[i] Bild erzeugen  [x] ohne Bild  [t] anderes Thema  [v] verwerfen: ")
     while True:
-        choice = input("\n[f]reigeben  [b]earbeiten  [u]eberarbeiten lassen  anderes [t]hema  [v]erwerfen: ").strip().lower()
-        action = CONSOLE_ACTIONS.get(choice)
+        choice = input(prompt).strip().lower()
+        action, variant = CONSOLE_ACTIONS.get(choice[:1]), VARIANT_KEYS.get(choice[1:2])
+        if action in ("approve", "edit", "revise") and not variant:
+            print("Bitte Variante angeben, z.B. 'fn' oder 'bh'.")
+            continue
         if action == "edit":
             print("Neuen Post-Text einfügen, Abschluss mit einer Zeile nur aus '.':")
-            return Decision(action=action, text="\n".join(iter(input, ".")))
+            return Decision(action=action, variant=variant, text="\n".join(iter(input, ".")))
         if action == "revise":
-            return Decision(action=action, text=input("Feedback an den Writer: "))
+            return Decision(action=action, variant=variant, text=input("Feedback an den Writer: "))
+        if action == "approve":
+            return Decision(action=action, variant=variant)
         if action:
             return Decision(action=action)
 
@@ -39,6 +50,10 @@ def run_console(args) -> None:
         print_candidates(step, args.top)
         while step.pending:
             print(f"\n{'=' * 70}\n{render_pending(step.pending)}\n{'=' * 70}")
+            if step.pending["has_image"]:
+                path = Path(tempfile.gettempdir()) / f"linkedin-bot-{step.thread_id}.png"
+                path.write_bytes(runtime.repo.get_image(step.thread_id))
+                print(f"🖼️ Bild gespeichert: {path}")
             step = resume(graph, step.thread_id, ask_decision())
         print("\n" + outcome_message(step.state))
 

@@ -20,6 +20,18 @@ models:
   researcher: {model: "openai:gpt-5-mini", reasoning_effort: low}
   writer: {model: "openai:gpt-5", reasoning_effort: medium}
   critic: {model: "openai:gpt-5", reasoning_effort: low}
+  hashtags: {model: "openai:gpt-5-mini", reasoning_effort: low}
+  image_prompt: {model: "openai:gpt-5-mini", reasoning_effort: low}
+
+# Bilder auf Knopfdruck (🖼️ in Telegram). Querformat passt am besten in den LinkedIn-Feed.
+images:
+  model: gpt-image-1
+  size: 1536x1024
+  quality: medium          # low | medium | high – beeinflusst die Kosten deutlich
+  style: >
+    Moderne Editorial-Illustration wie in einem hochwertigen Tech-Magazin: klare Formen, flächige Farben mit
+    leichten Verläufen, eine zentrale visuelle Metapher, viel Weißraum, ruhige Palette aus Petrol, Sand und
+    einem Akzent in Korallenrot. Keine Schrift im Bild.
 
 sources:
   # Anthropic & LangChain haben keinen funktionierenden Feed – werden über die Web-Recherche abgedeckt.

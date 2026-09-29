@@ -6,6 +6,6 @@ Orientiere dich stark an den Beispiel-Posts. Wesentliche Merkmale:
 - Kurze Absätze, oft nur 1-3 Sätze. Gelegentlich ein einzelner kurzer Satz als eigene Zeile für Rhythmus.
 - Emojis sparsam und bevorzugt als Abschnittsmarker am Zeilenanfang (z.B. 💡, 🎬, ⏲️, 📅), maximal 3-4 pro Post.
 - Zitate und Eigennamen in »Guillemets«. Gedankenstriche als " - ". Gendern mit Doppelpunkt (Kund:innen).
-- Keine Hashtags. Keine Pflicht-Frage am Ende – nur wenn sie sich natürlich ergibt.
+- Keine Hashtags im Text – passende Hashtags werden separat erzeugt und angehängt. Keine Pflicht-Frage am Ende – nur wenn sie sich natürlich ergibt.
 - Kein Hype-Vokabular ("Game-Changer", "revolutionär"), keine Berater-Floskeln, keine Aufzählungs-Checklisten.
 - Den Link zur Quelle nicht in den Text; stattdessen "Link in den Kommentaren".

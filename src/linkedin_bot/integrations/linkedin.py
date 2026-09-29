@@ -12,6 +12,7 @@ AUTH_URL = "https://www.linkedin.com/oauth/v2/authorization"
 TOKEN_URL = "https://www.linkedin.com/oauth/v2/accessToken"
 USERINFO_URL = "https://api.linkedin.com/v2/userinfo"
 POSTS_URL = "https://api.linkedin.com/rest/posts"
+IMAGES_URL = "https://api.linkedin.com/rest/images?action=initializeUpload"
 SCOPES = "openid profile w_member_social"
 DEFAULT_REDIRECT_URI = "http://localhost:8765/callback"
 
@@ -40,6 +41,18 @@ class LinkedInAuth:
 
 def escape_little(text: str) -> str:
     return LITTLE_RESERVED.sub(r"\\\1", text)
+
+
+def hashtag_template(tag: str) -> str:
+    """Offizielles little-Hashtag-Template – ein roh geschriebenes #Tag würde durch escape_little unklickbar."""
+    return "{hashtag|\\#|" + tag + "}"
+
+
+def build_commentary(body: str, hashtags: list[str]) -> str:
+    commentary = escape_little(body)
+    if hashtags:
+        commentary += "\n\n" + " ".join(hashtag_template(t) for t in hashtags)
+    return commentary
 
 
 def code_from_callback(params: dict[str, str], expected_state: str) -> str:
@@ -95,24 +108,37 @@ class LinkedInClient:
         info = profile.json()
         return LinkedInAuth(token["access_token"], expires_at, f"urn:li:person:{info['sub']}", info.get("name", ""))
 
-    def create_post(self, auth: LinkedInAuth, text: str, visibility: str = "PUBLIC") -> str:
-        """Veröffentlicht einen Text-Post und gibt dessen URN zurück."""
-        response = self.http.post(
-            POSTS_URL,
-            headers={
-                "Authorization": f"Bearer {auth.access_token}",
-                "LinkedIn-Version": self.api_version,
-                "X-Restli-Protocol-Version": "2.0.0",
-            },
-            json={
-                "author": auth.person_urn,
-                "commentary": escape_little(text),
-                "visibility": visibility,
-                "distribution": {"feedDistribution": "MAIN_FEED", "targetEntities": [], "thirdPartyDistributionChannels": []},
-                "lifecycleState": "PUBLISHED",
-                "isReshareDisabledByAuthor": False,
-            },
-        )
+    def _headers(self, auth: LinkedInAuth) -> dict[str, str]:
+        return {
+            "Authorization": f"Bearer {auth.access_token}",
+            "LinkedIn-Version": self.api_version,
+            "X-Restli-Protocol-Version": "2.0.0",
+        }
+
+    def upload_image(self, auth: LinkedInAuth, data: bytes) -> str:
+        """Registriert ein Bild, lädt die Bytes hoch und gibt die Bild-URN zurück."""
+        response = self.http.post(IMAGES_URL, headers=self._headers(auth),
+                                  json={"initializeUploadRequest": {"owner": auth.person_urn}})
+        self._raise_for_status(response, "Bild-Upload vorbereiten")
+        value = response.json()["value"]
+        upload = self.http.put(value["uploadUrl"], content=data, headers={"Authorization": f"Bearer {auth.access_token}"})
+        self._raise_for_status(upload, "Bild hochladen")
+        return value["image"]
+
+    def create_post(self, auth: LinkedInAuth, text: str, hashtags: list[str] | None = None,
+                    image: bytes | None = None, alt_text: str = "", visibility: str = "PUBLIC") -> str:
+        """Veröffentlicht einen Post (optional mit Bild) und gibt dessen URN zurück."""
+        body = {
+            "author": auth.person_urn,
+            "commentary": build_commentary(text, hashtags or []),
+            "visibility": visibility,
+            "distribution": {"feedDistribution": "MAIN_FEED", "targetEntities": [], "thirdPartyDistributionChannels": []},
+            "lifecycleState": "PUBLISHED",
+            "isReshareDisabledByAuthor": False,
+        }
+        if image:
+            body["content"] = {"media": {"id": self.upload_image(auth, image), "altText": alt_text}}
+        response = self.http.post(POSTS_URL, headers=self._headers(auth), json=body)
         self._raise_for_status(response, "Post erstellen")
         return response.headers["x-restli-id"]
 

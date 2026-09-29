@@ -56,14 +56,52 @@ class Critique(BaseModel):
     unsupported_claims: list[str] = Field(description="Aussagen im Post, die nicht durch die Recherche belegt sind")
 
 
-Action = Literal["approve", "edit", "revise", "new_topic", "reject"]
+class HashtagList(BaseModel):
+    tags: list[str] = Field(description="3-6 Hashtags ohne #-Zeichen, CamelCase, z.B. KIimHandel")
+
+
+class ImagePrompt(BaseModel):
+    prompt: str = Field(description="Englischer Bild-Prompt für ein Bildmodell")
+    alt_text: str = Field(description="Kurzer deutscher Alt-Text (max. 120 Zeichen)")
+
+
+Variant = Literal["normal", "humor"]
+VARIANTS: tuple[Variant, ...] = ("normal", "humor")
+
+
+class DraftVariant(BaseModel):
+    text: str
+    critique: Critique | None = None  # None = vom Autor bearbeitet
+    revisions: int = 0
+
+
+def merge_drafts(current: dict | None, update: dict | None) -> dict:
+    """Parallel geschriebene Varianten zusammenführen; `None` setzt zurück (neues Thema)."""
+    if update is None:
+        return {}
+    return {**(current or {}), **update}
+
+
+Action = Literal["approve", "edit", "revise", "new_topic", "reject", "image", "no_image"]
 
 
 class Decision(TypedDict, total=False):
     """Resume-Wert für den Freigabe-Interrupt."""
 
     action: Action
+    variant: Variant  # approve / edit / revise beziehen sich auf eine Variante
     text: str  # edit: neuer Post-Text, revise: Feedback an den Writer
+
+
+class ComposeTask(TypedDict, total=False):
+    """Payload für genau eine Variante (per Send, laufen parallel)."""
+
+    variant: Variant
+    selected: ScoredItem
+    angle: str
+    research: Research
+    previous: DraftVariant | None  # bei Überarbeitung durch den Autor
+    human_feedback: str | None
 
 
 class SourceTask(TypedDict):
@@ -81,11 +119,12 @@ class State(TypedDict, total=False):
     angle: str
     article: str
     research: Research
-    draft: str
-    revisions: int  # Anzahl geschriebener Entwürfe
-    critique: Critique | None
+    drafts: Annotated[dict[str, DraftVariant], merge_drafts]
+    hashtags: list[str]
+    image_prompt: ImagePrompt | None  # gesetzt, wenn ein Bild erzeugt wurde (Bytes liegen im Repository)
     # Human-in-the-Loop
     decision: Action | Literal["review"]
+    variant: Variant  # gewählte bzw. zu überarbeitende Variante
     human_feedback: str | None
     notice: str | None  # Hinweis an den Autor bei der nächsten Freigabe-Anfrage
     rejected_urls: Annotated[list[str], operator.add]  # per "Anderes Thema" verworfen

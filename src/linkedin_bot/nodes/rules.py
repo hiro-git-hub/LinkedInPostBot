@@ -19,5 +19,5 @@ def rule_issues(draft: str, cfg: AppConfig) -> list[str]:
     if bullets > MAX_BULLET_LINES:
         issues.append(f"{bullets} Aufzählungszeilen – keine Checklisten, in erzählenden Fließtext umformulieren.")
     if HASHTAG.search(draft):
-        issues.append("Hashtags entfernen.")
+        issues.append("Keine Hashtags im Text – die werden automatisch angehängt. Entfernen.")
     return issues

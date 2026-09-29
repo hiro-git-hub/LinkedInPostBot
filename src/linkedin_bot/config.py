@@ -52,6 +52,13 @@ class LinkedInConfig(BaseModel):
     remind_days_before_expiry: int = 7
 
 
+class ImagesConfig(BaseModel):
+    model: str = "gpt-image-1"
+    size: str = "1536x1024"
+    quality: str = "medium"
+    style: str = "Moderne Editorial-Illustration, eine visuelle Metapher, keine Schrift im Bild."
+
+
 class AppConfig(BaseModel):
     audience: str
     topics: str
@@ -63,6 +70,7 @@ class AppConfig(BaseModel):
     writing: WritingConfig = Field(default_factory=WritingConfig)
     schedule: ScheduleConfig = Field(default_factory=ScheduleConfig)
     linkedin: LinkedInConfig = Field(default_factory=LinkedInConfig)
+    images: ImagesConfig = Field(default_factory=ImagesConfig)
     prompts_dir: Path = PROJECT_ROOT / "prompts"
 
 

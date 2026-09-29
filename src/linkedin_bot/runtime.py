@@ -18,14 +18,17 @@ from psycopg_pool import ConnectionPool
 from linkedin_bot.config import AppConfig, load_config
 from linkedin_bot.db import InMemoryRepository, PostgresRepository, Repository
 from linkedin_bot.graph import build_graph
-from linkedin_bot.integrations.linkedin import post_url
 from linkedin_bot import state
-from linkedin_bot.state import Decision
+from linkedin_bot.integrations.linkedin import post_url
+from linkedin_bot.nodes.approval import VARIANT_LABELS, post_text
+from linkedin_bot.nodes.hashtags import hashtag_line
+from linkedin_bot.state import Decision, Variant
 
 # Pydantic-Modelle im State, die der Checkpointer wiederherstellen darf.
 CHECKPOINT_TYPES = [
     (state.__name__, cls.__name__)
-    for cls in (state.NewsItem, state.ScoredItem, state.Research, state.Fact, state.Critique)
+    for cls in (state.NewsItem, state.ScoredItem, state.Research, state.Fact, state.Critique,
+                state.DraftVariant, state.ImagePrompt)
 ]
 
 
@@ -104,13 +107,15 @@ def pending_steps(graph: CompiledStateGraph) -> list[Step]:
     steps = []
     for thread_id in sorted(thread_ids):
         snapshot = graph.get_state({"configurable": {"thread_id": thread_id}})
-        if "approval" in snapshot.next and snapshot.interrupts:
+        # Entwürfe aus älteren Versionen (ohne Varianten) nicht mehr zustellen.
+        if "approval" in snapshot.next and snapshot.interrupts and "drafts" in snapshot.interrupts[0].value:
             steps.append(Step(thread_id=thread_id, pending=snapshot.interrupts[0].value, state=snapshot.values))
     return steps
 
 
-def current_draft(graph: CompiledStateGraph, thread_id: str) -> str:
-    return graph.get_state({"configurable": {"thread_id": thread_id}}).values.get("draft", "")
+def current_draft(graph: CompiledStateGraph, thread_id: str, variant: Variant) -> str:
+    drafts = graph.get_state({"configurable": {"thread_id": thread_id}}).values.get("drafts") or {}
+    return drafts[variant].text if variant in drafts else ""
 
 
 def studio_graph():
@@ -118,20 +123,38 @@ def studio_graph():
     return build_graph(load_config(), InMemoryRepository(), checkpointer=None)
 
 
-def render_pending(pending: dict) -> str:
-    """Text für die Freigabe-Anfrage – gemeinsam für Konsole und Telegram."""
-    critique = pending["critique"]
-    lines = [f"📝 Entwurf: {pending['title']}", pending["url"], ""]
+VARIANT_ICONS = {"normal": "🅰️", "humor": "🅱️"}
+
+
+def render_header(pending: dict) -> str:
+    """Kopf der Freigabe-Anfrage (Thema, Hashtags, Bild, Hinweis) – gemeinsam für Konsole und Telegram."""
+    lines = [f"📝 Neuer Entwurf: {pending['title']}", pending["url"], ""]
     if pending.get("notice"):
         lines += [f"⚠️ {pending['notice']}", ""]
-    lines += [pending["draft"], "", f"— {len(pending['draft'])} Zeichen"]
-    if critique.approved:
+    lines.append(f"🏷️ {hashtag_line(pending['hashtags']) or '(keine Hashtags)'}")
+    lines.append(f"🖼️ {'Bild: ' + pending['image_alt'] if pending['has_image'] else 'Kein Bild'}")
+    lines.append("\nUnten stehen beide Versionen – gib die gewünschte frei.")
+    return "\n".join(lines)
+
+
+def render_variant(pending: dict, variant: Variant) -> str:
+    draft = pending["drafts"][variant]
+    lines = [f"{VARIANT_ICONS[variant]} {VARIANT_LABELS[variant]}-Version", "", draft.text, "",
+             f"— {len(draft.text)} Zeichen"]
+    critique = draft.critique
+    if critique is None:
+        lines.append("Von dir bearbeitet ✏️")
+    elif critique.approved:
         lines.append("Critic: freigegeben ✓")
     else:
         lines.append("Critic: offene Punkte")
         lines += [f"• {i}" for i in critique.issues[:3]]
         lines += [f"• nicht belegt: {c}" for c in critique.unsupported_claims[:3]]
     return "\n".join(lines)
+
+
+def render_pending(pending: dict) -> str:
+    return "\n\n".join([render_header(pending)] + [render_variant(pending, v) for v in pending["drafts"]])
 
 
 def outcome_message(state: dict) -> str:
@@ -144,7 +167,7 @@ def outcome_message(state: dict) -> str:
         return "✅ Freigegeben und archiviert (Dry-Run – nicht auf LinkedIn veröffentlicht)."
     if status == "publish_failed":
         return (f"⚠️ Veröffentlichung fehlgeschlagen: {state['publish_error']}\n\n"
-                "Der Text ist archiviert – hier zum manuellen Posten:\n\n" + state["draft"])
+                "Der Text ist archiviert – hier zum manuellen Posten:\n\n" + post_text(state, state["variant"]))
     if status == "rejected":
         return "🗑️ Verworfen."
     return "🤷 Kein Thema über der Relevanz-Schwelle – kein Entwurf."

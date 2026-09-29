@@ -18,9 +18,13 @@ from linkedin_bot.config import AppConfig
 from linkedin_bot.errors import describe_error
 from linkedin_bot.healthcheck import HEARTBEAT_INTERVAL_SECONDS, write_heartbeat
 from linkedin_bot.integrations.linkedin import LinkedInClient, LinkedInError, code_from_callback, params_from_url
-from linkedin_bot.nodes.approval import PLACEHOLDER
-from linkedin_bot.runtime import Runtime, Step, current_draft, is_awaiting_approval, pending_steps, outcome_message, render_pending, resume, start_run
-from linkedin_bot.state import Decision
+from linkedin_bot.nodes.approval import PLACEHOLDER, VARIANT_LABELS
+from linkedin_bot.nodes.hashtags import hashtag_line
+from linkedin_bot.runtime import (
+    Runtime, Step, current_draft, is_awaiting_approval, outcome_message, pending_steps, render_header,
+    render_variant, resume, start_run,
+)
+from linkedin_bot.state import VARIANTS, Decision
 
 log = logging.getLogger(__name__)
 
@@ -28,22 +32,39 @@ log = logging.getLogger(__name__)
 WEEKDAYS = {"sun": 0, "mon": 1, "tue": 2, "wed": 3, "thu": 4, "fri": 5, "sat": 6}
 TELEGRAM_LIMIT = 4096
 
-KEYBOARD = [
-    [("✅ Freigeben", "approve"), ("✏️ Bearbeiten", "edit")],
-    [("🔁 Überarbeiten lassen", "revise"), ("🔀 Anderes Thema", "new_topic")],
-    [("❌ Verwerfen", "reject")],
+VARIANT_KEYBOARD = [
+    [("✅ Diese Version freigeben", "approve")],
+    [("✏️ Bearbeiten", "edit"), ("🔁 Überarbeiten lassen", "revise")],
 ]
 # Aktionen, für die wir erst noch Text vom Autor brauchen
 ASK_FOR_TEXT = {
-    "edit": "Schick mir den kompletten neuen Post-Text als nächste Nachricht.",
-    "revise": "Was soll anders werden? Schick mir dein Feedback als nächste Nachricht.",
+    "edit": "Schick mir den kompletten neuen Text der {label}-Version als nächste Nachricht "
+            "(Hashtags am Ende werden übernommen).",
+    "revise": "Was soll an der {label}-Version anders werden? Schick mir dein Feedback als nächste Nachricht.",
+}
+PROGRESS = {
+    "new_topic": "⏳ Nehme ein anderes Thema und recherchiere neu …",
+    "image": "🎨 Erzeuge ein Bild – dauert etwa eine Minute …",
 }
 
 
-def keyboard(thread_id: str) -> InlineKeyboardMarkup:
+def _button(label: str, action: str, variant: str, thread_id: str) -> InlineKeyboardButton:
+    # callback_data max. 64 Byte: "new_topic|humor|2026-09-28-61390f" passt.
+    return InlineKeyboardButton(label, callback_data=f"{action}|{variant}|{thread_id}")
+
+
+def control_keyboard(thread_id: str, has_image: bool) -> InlineKeyboardMarkup:
+    image_row = ([_button("🔄 Neues Bild", "image", "", thread_id), _button("🗑️ Ohne Bild", "no_image", "", thread_id)]
+                 if has_image else [_button("🖼️ Bild erzeugen", "image", "", thread_id)])
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton(label, callback_data=f"{action}|{thread_id}") for label, action in row]
-        for row in KEYBOARD
+        image_row,
+        [_button("🔀 Anderes Thema", "new_topic", "", thread_id), _button("❌ Verwerfen", "reject", "", thread_id)],
+    ])
+
+
+def variant_keyboard(thread_id: str, variant: str) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([
+        [_button(label, action, variant, thread_id) for label, action in row] for row in VARIANT_KEYBOARD
     ])
 
 
@@ -56,7 +77,7 @@ class ApprovalBot:
         chat_id = os.environ.get("TELEGRAM_CHAT_ID", "").strip()
         self.chat_id = int(chat_id) if chat_id else None
         # Wartet der Bot auf Text für edit/revise? Nur im Speicher – nach Neustart einfach erneut tippen.
-        self.awaiting: tuple[str, str] | None = None
+        self.awaiting: tuple[str, str, str] | None = None  # (action, variant, thread_id)
         self.login_state: str | None = None  # CSRF-Schutz für /login
         self.lock = asyncio.Lock()  # ein Graph-Lauf zur Zeit; LLM-Kosten und Reihenfolge bleiben überschaubar
 
@@ -74,8 +95,17 @@ class ApprovalBot:
 
     async def deliver(self, app: Application, step: Step) -> None:
         if step.pending:
-            text = render_pending(step.pending)[:TELEGRAM_LIMIT]
-            await app.bot.send_message(self.chat_id, text, reply_markup=keyboard(step.thread_id))
+            pending = step.pending
+            await app.bot.send_message(self.chat_id, render_header(pending)[:TELEGRAM_LIMIT],
+                                       reply_markup=control_keyboard(step.thread_id, pending["has_image"]))
+            if pending["has_image"]:
+                image = await asyncio.to_thread(self.repo.get_image, step.thread_id)
+                if image:
+                    await app.bot.send_photo(self.chat_id, image, caption=f"🖼️ {pending['image_alt']}"[:1024])
+            for variant in VARIANTS:
+                if variant in pending["drafts"]:
+                    await app.bot.send_message(self.chat_id, render_variant(pending, variant)[:TELEGRAM_LIMIT],
+                                               reply_markup=variant_keyboard(step.thread_id, variant))
         else:
             await app.bot.send_message(self.chat_id, outcome_message(step.state)[:TELEGRAM_LIMIT])
 
@@ -169,12 +199,12 @@ class ApprovalBot:
         if not self.authorized(update):
             await query.answer()
             return
-        action, thread_id = query.data.split("|", 1)
+        action, variant, thread_id = query.data.split("|", 2)
         if not is_awaiting_approval(self.graph, thread_id):
             await query.answer("Dieser Entwurf ist nicht mehr offen.")
             await query.edit_message_reply_markup(None)
             return
-        draft = current_draft(self.graph, thread_id)
+        draft = current_draft(self.graph, thread_id, variant) if variant else ""
         if action == "approve" and PLACEHOLDER in draft:
             # Direkt als Popup abfangen, statt den ganzen Entwurf erneut zu schicken (der Graph prüft zusätzlich).
             await query.answer(
@@ -188,17 +218,18 @@ class ApprovalBot:
         await query.edit_message_reply_markup(None)  # verhindert Doppelklicks
 
         if action in ASK_FOR_TEXT:
-            self.awaiting = (action, thread_id)
-            await context.bot.send_message(self.chat_id, ASK_FOR_TEXT[action])
+            self.awaiting = (action, variant, thread_id)
+            await context.bot.send_message(self.chat_id, ASK_FOR_TEXT[action].format(label=VARIANT_LABELS[variant]))
             if action == "edit":
-                # Reiner Post-Text als eigene Nachricht – lässt sich in Telegram am Stück kopieren.
-                await context.bot.send_message(self.chat_id, draft[:TELEGRAM_LIMIT])
+                # Reiner Post-Text inkl. Hashtags als eigene Nachricht – lässt sich in Telegram am Stück kopieren.
+                tags = self.graph.get_state({"configurable": {"thread_id": thread_id}}).values.get("hashtags") or []
+                full = f"{draft}\n\n{hashtag_line(tags)}" if tags else draft
+                await context.bot.send_message(self.chat_id, full[:TELEGRAM_LIMIT])
             return
-        if action == "new_topic":
-            await context.bot.send_message(self.chat_id, "⏳ Nehme ein anderes Thema und recherchiere neu …")
-        context.application.create_task(
-            self.advance(context.application, resume, thread_id, Decision(action=action))
-        )
+        if action in PROGRESS:
+            await context.bot.send_message(self.chat_id, PROGRESS[action])
+        decision = Decision(action=action, variant=variant) if variant else Decision(action=action)
+        context.application.create_task(self.advance(context.application, resume, thread_id, decision))
 
     async def on_text(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         if not self.authorized(update):
@@ -213,13 +244,12 @@ class ApprovalBot:
                 "Keine Buttons mehr sichtbar? /offen schickt den Entwurf neu."
             )
             return
-        action, thread_id = self.awaiting
+        action, variant, thread_id = self.awaiting
         self.awaiting = None
         if action == "revise":
-            await update.message.reply_text("⏳ Überarbeite …")
-        context.application.create_task(
-            self.advance(context.application, resume, thread_id, Decision(action=action, text=update.message.text))
-        )
+            await update.message.reply_text(f"⏳ Überarbeite die {VARIANT_LABELS[variant]}-Version …")
+        decision = Decision(action=action, variant=variant, text=update.message.text)
+        context.application.create_task(self.advance(context.application, resume, thread_id, decision))
 
     async def heartbeat(self, context: ContextTypes.DEFAULT_TYPE) -> None:
         """Für den Docker-Healthcheck: nur schreiben, wenn Telegram und Postgres wirklich antworten."""

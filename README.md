@@ -4,14 +4,16 @@ LangGraph-Pipeline, die KI-/Developer-News sammelt, bewertet, recherchiert und d
 die du per Telegram freigibst und die dann auf deinem LinkedIn-Profil erscheinen. **Stand: Phase 4 – lokal lauffähig, Deployment folgt in Phase 5.**
 
 ```
-START ─┬─ collect(rss) ─┐
-       └─ collect(hn)  ─┴─▶ dedup ─▶ scorer ─▶ select ─▶ research ─▶ writer ─▶ critic ─▶ approval ─▶ publish ─▶ archive ─▶ END
-                                               ▲                       ▲    └─(max. 2x)─┘  │ ▲    │
-                                               │                       └── überarbeiten ───┤ └────┘ bearbeiten /
-                                               └────────────── anderes Thema ──────────────┘        Platzhalter offen
+START ─┬─ collect(rss) ─┐                                          ┌─ compose(normal) ─┐
+       └─ collect(hn)  ─┴─▶ dedup ─▶ scorer ─▶ select ─▶ research ─┤                    ├─▶ hashtags ─▶ approval ─▶ publish ─▶ archive
+                                               ▲                  └─ compose(humor)  ─┘                 │  ▲ │
+                                               └───────────── anderes Thema ───────────────────────────┤  │ └─▶ image (auf Knopfdruck)
+                                                                     überarbeiten (eine Variante) ─────┘  │
+                                                                                                          └── bearbeiten / Platzhalter
 ```
 
-`approval` ist ein LangGraph-`interrupt`: Der Lauf pausiert im Postgres-Checkpointer, bis du entscheidest –
+`compose` schreibt eine Variante inkl. Critic-Schleife (max. 2 Überarbeitungen) – Normal- und Humor-Version
+laufen per `Send` parallel. `approval` ist ein LangGraph-`interrupt`: Der Lauf pausiert im Postgres-Checkpointer, bis du entscheidest –
 auch über Tage und Container-Neustarts hinweg.
 
 ## Setup
@@ -42,9 +44,13 @@ uv run linkedin-bot linkedin-login   # LinkedIn-Anmeldung (alle 60 Tage)
 uv run pytest                     # Tests (ohne Netzwerk/LLM/DB)
 ```
 
-Im Telegram-Chat: `/run` startet sofort einen Lauf. Unter jedem Entwurf: **Freigeben**, **Bearbeiten** (eigenen Text
-schicken), **Überarbeiten lassen** (Feedback an den Writer), **Anderes Thema**, **Verwerfen**.
-Solange ein `[EIGENE ERFAHRUNG: …]`-Platzhalter im Text steht, lässt sich nicht freigeben.
+Im Telegram-Chat: `/run` startet sofort einen Lauf, `/offen` schickt offene Entwürfe erneut, `/login` meldet bei
+LinkedIn an. Jeder Entwurf kommt als **Normal-** und **Humor-Version** mit 3–6 Hashtags:
+- pro Version: **Diese Version freigeben**, **Bearbeiten** (eigenen Text schicken, Hashtags am Ende werden übernommen),
+  **Überarbeiten lassen** (Feedback an den Writer)
+- für den Entwurf: **Bild erzeugen** / **Neues Bild** / **Ohne Bild**, **Anderes Thema**, **Verwerfen**
+
+Solange ein `[EIGENE ERFAHRUNG: …]`-Platzhalter im Text steht, lässt sich die Version nicht freigeben.
 
 ## Anpassen
 
@@ -62,8 +68,9 @@ Solange ein `[EIGENE ERFAHRUNG: …]`-Platzhalter im Text steht, lässt sich nic
 | `src/linkedin_bot/telegram_bot.py` | Freigabe-Bot (Long-Polling) + Zeitplan |
 | `src/linkedin_bot/db.py` | Gesehene Items, Post-Archiv (Postgres / In-Memory) |
 | `src/linkedin_bot/state.py` | Graph-State und Pydantic-Modelle |
-| `src/linkedin_bot/nodes/` | Dedup, Scorer, Selector, Research-Agent, Writer, Critic, Approval/Archiv |
+| `src/linkedin_bot/nodes/` | Dedup, Scorer, Selector, Research-Agent, Compose (Writer + Critic je Variante), Hashtags, Image, Approval/Archiv |
 | `src/linkedin_bot/nodes/rules.py` | Harte, deterministische Regeln (Länge, Checklisten, Hashtags) |
-| `src/linkedin_bot/integrations/linkedin.py` | OAuth, Posts-API, little-Text-Escaping |
+| `src/linkedin_bot/integrations/linkedin.py` | OAuth, Posts- und Images-API, little-Text-Escaping, Hashtag-Templates |
+| `src/linkedin_bot/integrations/images.py` | Bildgenerierung (OpenAI, Modell in `config.yaml` → `images`) |
 | `src/linkedin_bot/login.py` | Browser-Login mit lokalem Callback-Server |
 | `src/linkedin_bot/collectors/`, `tools/` | RSS, Hacker News, Tavily-Suche, Artikel-Extraktion |
