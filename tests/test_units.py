@@ -172,3 +172,31 @@ def test_linkedin_client_comment_request(linkedin_env):
     assert json.loads(route.calls.last.request.content) == {
         "actor": "urn:li:person:abc", "object": "urn:li:share:9", "message": {"text": "Quelle: https://example.com"},
     }
+
+
+def test_rule_issues_flags_banned_phrases(cfg):
+    cfg.writing.banned_phrases = ["Aber kurz von vorn"]
+    issues = rule_issues(draft(1) + "\naber kurz von vorn: …", cfg)
+    assert any("Aber kurz von vorn" in i for i in issues)
+
+
+def test_parse_feed_keeps_newest_per_feed():
+    from linkedin_bot.collectors.rss import parse_feed
+
+    now = datetime.now(UTC)
+    entries = "".join(
+        f"<item><title>T{i}</title><link>https://x.de/{i}</link>"
+        f"<pubDate>{(now - timedelta(hours=i)):%a, %d %b %Y %H:%M:%S +0000}</pubDate></item>"
+        for i in range(5)
+    )
+    rss = f'<?xml version="1.0"?><rss version="2.0"><channel><title>F</title>{entries}</channel></rss>'
+    assert [i.title for i in parse_feed(rss.encode(), "https://x.de/feed", 48, max_items=2)] == ["T0", "T1"]
+
+
+def test_author_profile_reaches_writer_critic_and_selector(cfg):
+    from linkedin_bot.nodes.writer import build_system_prompt
+
+    assert "Shopware" in cfg.author
+    assert cfg.author in build_system_prompt(cfg, "normal")
+    for name in ("critic.md", "selector.md"):
+        assert "{author}" in (cfg.prompts_dir / name).read_text()

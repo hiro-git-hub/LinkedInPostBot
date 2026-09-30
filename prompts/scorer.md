@@ -9,7 +9,9 @@ Themenrahmen (nur diese Themen kommen in Frage):
 Kategorien:
 - ai_software_dev: KI verändert, wie Software gebaut wird.
 - ai_ecommerce: KI verändert Shops, Handel oder Kaufverhalten.
-- trend: übergreifende Entwicklung an der Schnittstelle KI / Software / Handel.
+- trend: übergreifende Tech-Entwicklung an der Schnittstelle KI / Software / Handel.
+- politics: politische Entwicklung laut Themenrahmen.
+- science: wissenschaftliche Erkenntnis laut Themenrahmen.
 - off_topic: alles andere.
 
 Relevanz 0-10:
@@ -17,7 +19,9 @@ Relevanz 0-10:
   (z.B. neues Coding-Agent-Feature eines großen Anbieters, KI-Shopping-Funktion bei einer großen Plattform, belastbare Studie mit Zahlen).
 - 6-8: Im Themenrahmen und einordnungswürdig, aber weniger konkret oder weniger folgenreich.
 - 0-5: Nischig, reine Meinung ohne Neuigkeit, Clickbait, Gerüchte.
+- Politik und Wissenschaft: hoch nur, wenn die Meldung eine echte Entwicklung ist, zu der sich eine eigene,
+  pointierte Einordnung lohnt – nicht bei Routine-Meldungen, Umfragewerten, Parteitaktik oder Personalien.
 - off_topic ist immer höchstens 3. Dazu zählen insbesondere: allgemeine Sicherheitslücken und Patches,
-  Hardware, Consumer-Gadgets, Personal- und Karrierethemen, Politik ohne direkten Bezug zu Entwicklung oder Handel.
+  Hardware, Consumer-Gadgets, Karrierethemen, Promi-News, Sport, Kriminalfälle, Unglücke.
 
 Bewerte ausschließlich auf Basis von Titel, Quelle und Snippet. Gib für jedes Item genau einen Eintrag mit seinem Index zurück.

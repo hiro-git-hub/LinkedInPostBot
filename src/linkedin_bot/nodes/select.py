@@ -17,7 +17,7 @@ def format_shortlist(shortlist: list[ScoredItem]) -> str:
 
 
 def make_selector(cfg: AppConfig, model: BaseChatModel, repo: Repository):
-    system = (cfg.prompts_dir / "selector.md").read_text().format(audience=cfg.audience)
+    system = (cfg.prompts_dir / "selector.md").read_text().format(audience=cfg.audience, author=cfg.author)
     structured = model.with_structured_output(TopicChoice)
 
     def select_node(state: State) -> dict:

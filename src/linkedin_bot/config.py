@@ -16,6 +16,7 @@ class ModelConfig(BaseModel, extra="allow"):
 class HackerNewsConfig(BaseModel):
     min_points: int = 150
     lookback_hours: int = 24
+    max_items: int = 20
 
 
 class SourcesConfig(BaseModel):
@@ -25,7 +26,8 @@ class SourcesConfig(BaseModel):
 
 class LimitsConfig(BaseModel):
     max_age_hours: int = 48
-    max_items_to_score: int = 40
+    max_items_to_score: int = 100
+    max_items_per_feed: int = 12  # sonst verdrängen News-Feeds mit vielen Meldungen die Fachquellen
     min_relevance: int = 6
     shortlist_size: int = 5
 
@@ -38,6 +40,8 @@ class WritingConfig(BaseModel):
     min_chars: int = 900
     max_chars: int = 1800
     max_revisions: int = 2
+    # Abgenutzte Formulierungen – kommt eine davon vor, muss der Writer umformulieren.
+    banned_phrases: list[str] = Field(default_factory=list)
 
 
 class ScheduledRun(BaseModel):
@@ -80,6 +84,11 @@ class AppConfig(BaseModel):
     linkedin: LinkedInConfig = Field(default_factory=LinkedInConfig)
     images: ImagesConfig = Field(default_factory=ImagesConfig)
     prompts_dir: Path = PROJECT_ROOT / "prompts"
+
+    @property
+    def author(self) -> str:
+        """Rolle und Humor des Autors (prompts/author.md) – für Writer, Critic und Themenwahl."""
+        return (self.prompts_dir / "author.md").read_text()
 
 
 def load_config(path: Path | None = None) -> AppConfig:

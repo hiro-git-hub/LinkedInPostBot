@@ -44,4 +44,5 @@ def collect_hackernews(cfg: HackerNewsConfig) -> list[NewsItem]:
     except httpx.HTTPError as exc:
         log.warning("Hacker News übersprungen: %s", exc)
         return []
-    return parse_hits(response.json()["hits"])
+    items = sorted(parse_hits(response.json()["hits"]), key=lambda i: i.points or 0, reverse=True)
+    return items[: cfg.max_items]

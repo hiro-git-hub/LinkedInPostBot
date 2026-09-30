@@ -4,7 +4,7 @@ from typing import Annotated, Literal, TypedDict
 
 from pydantic import BaseModel, Field
 
-Category = Literal["ai_software_dev", "ai_ecommerce", "trend", "off_topic"]
+Category = Literal["ai_software_dev", "ai_ecommerce", "trend", "politics", "science", "off_topic"]
 
 
 class NewsItem(BaseModel):

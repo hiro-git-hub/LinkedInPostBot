@@ -38,7 +38,7 @@ def build_graph(
     """Checkpointer ist Pflicht: ohne ihn kann der Freigabe-Interrupt nicht fortgesetzt werden."""
     collectors: dict[str, Callable[[], list]] = {}
     if cfg.sources.rss:
-        collectors["rss"] = lambda: collect_rss(cfg.sources.rss, cfg.limits.max_age_hours)
+        collectors["rss"] = lambda: collect_rss(cfg.sources.rss, cfg.limits.max_age_hours, cfg.limits.max_items_per_feed)
     if cfg.sources.hackernews:
         collectors["hackernews"] = lambda: collect_hackernews(cfg.sources.hackernews)
 

@@ -7,13 +7,14 @@ from linkedin_bot.nodes.writer import format_research
 from linkedin_bot.state import ComposeTask, Critique
 
 HUMOR_NOTE = (
-    "\n\nDieser Entwurf ist die humorvolle Variante: Prüfe zusätzlich, ob der Humor zündet, aus der Sache kommt "
-    "und nicht albern, zynisch oder auf Kosten von Personen ist. Fakten gelten genauso streng."
+    "\n\nDieser Entwurf ist die humorvolle Variante: Prüfe zusätzlich, ob der Sarkasmus zündet, aus der Sache kommt "
+    "und nicht albern wirkt oder einzelne Personen persönlich angreift. Fakten gelten genauso streng."
 )
 
 
 def make_critic(cfg: AppConfig, model: BaseChatModel):
     system = (cfg.prompts_dir / "critic.md").read_text().format(
+        author=cfg.author,
         audience=cfg.audience,
         style_guide=(cfg.prompts_dir / "style_guide.md").read_text(),
     )

@@ -18,6 +18,9 @@ def rule_issues(draft: str, cfg: AppConfig) -> list[str]:
     bullets = sum(1 for line in draft.splitlines() if BULLET.match(line))
     if bullets > MAX_BULLET_LINES:
         issues.append(f"{bullets} Aufzählungszeilen – keine Checklisten, in erzählenden Fließtext umformulieren.")
+    used = [p for p in cfg.writing.banned_phrases if p.lower() in draft.lower()]
+    if used:
+        issues.append(f"Abgenutzte Formulierung(en) ersetzen: {', '.join(repr(p) for p in used)} – anders formulieren.")
     if HASHTAG.search(draft):
         issues.append("Keine Hashtags im Text – die werden automatisch angehängt. Entfernen.")
     return issues

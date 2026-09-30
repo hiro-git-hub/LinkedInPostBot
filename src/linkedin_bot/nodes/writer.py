@@ -17,6 +17,7 @@ def load_examples(cfg: AppConfig) -> str:
 def build_system_prompt(cfg: AppConfig, variant: Variant = "normal") -> str:
     prompt = (cfg.prompts_dir / "writer.md").read_text().format(
         language=cfg.language,
+        author=cfg.author,
         audience=cfg.audience,
         style_guide=(cfg.prompts_dir / "style_guide.md").read_text(),
         examples=load_examples(cfg),
