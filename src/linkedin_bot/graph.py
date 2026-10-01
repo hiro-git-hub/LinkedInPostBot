@@ -13,6 +13,7 @@ from linkedin_bot.integrations.images import OpenAIImageGenerator
 from linkedin_bot.integrations.linkedin import LinkedInClient
 from linkedin_bot.models import get_model
 from linkedin_bot.nodes.approval import approval_node, compose_tasks, make_archive, route_after_approval
+from linkedin_bot.nodes.carousel import CarouselRenderer, make_carousel_maker
 from linkedin_bot.nodes.compose import make_compose
 from linkedin_bot.nodes.dedup import make_dedup
 from linkedin_bot.nodes.hashtags import make_hashtagger
@@ -34,6 +35,7 @@ def build_graph(
     research_agent: Runnable | None = None,
     linkedin: LinkedInClient | None = None,
     image_generator: ImageGenerator | None = None,
+    carousel_renderer: CarouselRenderer | None = None,
 ):
     """Checkpointer ist Pflicht: ohne ihn kann der Freigabe-Interrupt nicht fortgesetzt werden."""
     collectors: dict[str, Callable[[], list]] = {}
@@ -70,6 +72,8 @@ def build_graph(
     graph.add_node("hashtags", make_hashtagger(cfg, model_factory(cfg, "hashtags")))
     graph.add_node("approval", approval_node)
     graph.add_node("image", make_imager(cfg, model_factory(cfg, "image_prompt"), repo, image_generator))
+    carousel_kwargs = {"render": carousel_renderer} if carousel_renderer else {}
+    graph.add_node("carousel", make_carousel_maker(cfg, model_factory(cfg, "carousel"), repo, **carousel_kwargs))
     graph.add_node("publish", make_publisher(cfg, repo, linkedin))
     graph.add_node("archive", make_archive(repo))
 
@@ -81,8 +85,10 @@ def build_graph(
     graph.add_conditional_edges("research", fan_out_variants, ["compose"])
     graph.add_edge("compose", "hashtags")
     graph.add_edge("hashtags", "approval")
-    graph.add_conditional_edges("approval", route_after_approval, ["approval", "compose", "select", "image", "publish", "archive"])
+    graph.add_conditional_edges("approval", route_after_approval,
+                                ["approval", "compose", "select", "image", "carousel", "publish", "archive"])
     graph.add_edge("image", "approval")
+    graph.add_edge("carousel", "approval")
     graph.add_edge("publish", "archive")
     graph.add_edge("archive", END)
     return graph.compile(checkpointer=checkpointer)

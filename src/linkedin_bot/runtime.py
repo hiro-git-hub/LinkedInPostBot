@@ -32,7 +32,7 @@ log = logging.getLogger(__name__)
 CHECKPOINT_TYPES = [
     (state.__name__, cls.__name__)
     for cls in (state.NewsItem, state.ScoredItem, state.Research, state.Fact, state.Critique,
-                state.DraftVariant, state.ImagePrompt)
+                state.DraftVariant, state.ImagePrompt, state.CarouselSpec, state.Slide)
 ]
 
 
@@ -155,6 +155,8 @@ def render_variant(pending: dict, variant: Variant) -> str:
              f"— {len(draft.text)} Zeichen"]
     if variant in pending["images"]:
         lines.append(f"🖼️ Mit Bild: {pending['images'][variant]}")
+    if variant in pending.get("carousels", {}):
+        lines.append(f"📑 Mit Karussell: {pending['carousels'][variant]}")
     critique = draft.critique
     if critique is None:
         lines.append("Von dir bearbeitet ✏️")

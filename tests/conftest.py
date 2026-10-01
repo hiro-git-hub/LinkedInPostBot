@@ -21,7 +21,7 @@ from linkedin_bot.db import InMemoryRepository  # noqa: E402
 from linkedin_bot.graph import build_graph  # noqa: E402
 from linkedin_bot.integrations.linkedin import LinkedInAuth  # noqa: E402
 from linkedin_bot.state import (  # noqa: E402
-    Critique, Fact, HashtagList, ImagePrompt, ItemScore, Research, ScoreBatch, TopicChoice,
+    CarouselSpec, Critique, Fact, HashtagList, ImagePrompt, ItemScore, Research, ScoreBatch, Slide, TopicChoice,
 )
 
 FEED_URL = "https://example.com/feed.xml"
@@ -136,6 +136,7 @@ class Models:
             "image_prompt": FakeModel(responses=[""], structured={
                 ImagePrompt: ImagePrompt(prompt="a lighthouse made of circuits", alt_text="Leuchtturm aus Platinen")
             }, calls=[]),
+            "carousel": FakeModel(responses=[""], structured={CarouselSpec: CAROUSEL}, calls=[]),
         }
 
     def __call__(self, _cfg, role):
@@ -149,8 +150,17 @@ def fake_research_agent(calls: list):
     return RunnableLambda(run)
 
 
+CAROUSEL = CarouselSpec(title="Shopware 6.7 Upgrade", slides=[
+    Slide(kind="title", headline="Hook"), Slide(kind="code", headline="Code", code="echo 1;", language="php"),
+] + [Slide(kind="text", headline=f"Punkt {i}") for i in range(10)])  # mehr als slides.max -> wird gekürzt
+
+
 def fake_image(prompt: str) -> bytes:
     return b"PNG:" + prompt.encode()
+
+
+def fake_carousel(spec, _cfg, footer) -> bytes:
+    return f"PDF:{spec.title}:{len(spec.slides)}:{footer}".encode()
 
 
 @pytest.fixture
@@ -178,5 +188,5 @@ def make_graph(cfg, models, repo=None, calls=None, linkedin=None):
     return build_graph(
         cfg, repo if repo is not None else InMemoryRepository(), InMemorySaver(), models,
         research_agent=fake_research_agent(calls if calls is not None else []),
-        linkedin=linkedin, image_generator=fake_image,
+        linkedin=linkedin, image_generator=fake_image, carousel_renderer=fake_carousel,
     )

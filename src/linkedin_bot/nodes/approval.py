@@ -20,12 +20,14 @@ def approval_node(state: State) -> dict:
     """Pausiert den Graph, bis der Autor entscheidet. Der Resume-Wert ist eine `Decision`."""
     item = state["selected"].item
     images = state.get("image_prompts") or {}
+    carousels = state.get("carousels") or {}
     decision: Decision = interrupt({
         "title": item.title,
         "url": item.url,
         "drafts": state["drafts"],
         "hashtags": state.get("hashtags") or [],
         "images": {variant: prompt.alt_text for variant, prompt in images.items()},  # Variante -> Alt-Text
+        "carousels": {variant: f"{spec.title} ({len(spec.slides)} Folien)" for variant, spec in carousels.items()},
         "notice": state.get("notice"),
     })
     action, variant = decision["action"], decision.get("variant", "normal")
@@ -46,11 +48,14 @@ def approval_node(state: State) -> dict:
     if action == "no_image":
         return {"decision": "review", "image_prompts": {variant: None},
                 "notice": f"Bild der {VARIANT_LABELS[variant]}-Version entfernt."}
+    if action == "no_carousel":
+        return {"decision": "review", "carousels": {variant: None},
+                "notice": f"Karussell der {VARIANT_LABELS[variant]}-Version entfernt."}
     if action == "new_topic":
         return {
             "decision": "new_topic",
             "rejected_urls": [item.url],
-            "drafts": None, "hashtags": [], "image_prompts": None, "notice": None,
+            "drafts": None, "hashtags": [], "image_prompts": None, "carousels": None, "notice": None,
         }
     return {"decision": action, "variant": variant, "human_feedback": decision.get("text"), "notice": None}
 
@@ -79,6 +84,7 @@ def route_after_approval(state: State):
         "approve": "publish",
         "reject": "archive",
         "image": "image",
+        "carousel": "carousel",
     }[decision]
 
 
@@ -92,6 +98,7 @@ def make_archive(repo: Repository):
             post_urn=state.get("post_urn"), error=state.get("publish_error"),
             variant=variant if approved else None,
             has_image=approved and variant in (state.get("image_prompts") or {}),
+            has_carousel=approved and variant in (state.get("carousels") or {}),
             category=state["selected"].category,
         )
         return {"status": state["status"] if approved else "rejected"}

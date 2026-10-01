@@ -126,6 +126,7 @@ carousel:
   format: 1080x1350                         # Hochformat 4:5
   code_highlighting: true
   theme: {font: "Inter", mono_font: "JetBrains Mono", background: "#FAFAF7", accent: "#1F6FEB"}
+  footer: "Jonas Fichtner · Senior Developer Shopware & KI"   # unten links auf jeder Folie
 
 sources:
   rss:

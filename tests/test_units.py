@@ -5,7 +5,7 @@ import httpx
 import pytest
 import respx
 
-from linkedin_bot.integrations.linkedin import COMMENTS_URL, IMAGES_URL, POSTS_URL, TOKEN_URL, USERINFO_URL, LinkedInAuth, LinkedInClient, LinkedInError, escape_little
+from linkedin_bot.integrations.linkedin import COMMENTS_URL, DOCUMENTS_URL, IMAGES_URL, POSTS_URL, TOKEN_URL, USERINFO_URL, LinkedInAuth, LinkedInClient, LinkedInError, escape_little
 from linkedin_bot.nodes.dedup import dedupe, normalize_url
 from linkedin_bot.nodes.rules import rule_issues
 from linkedin_bot.db import InMemoryRepository
@@ -333,3 +333,34 @@ def test_hn_gravity_prefers_fresh_stories_and_exact_keywords():
     assert title_matches("Building RAG on Shopware", "rag")
     assert not title_matches("Distributed storage engines", "rag")
     assert title_matches("Claude Code ships agents", "claude code")
+
+
+@respx.mock
+def test_linkedin_client_uploads_document_for_carousel(linkedin_env):
+    upload_url = "https://www.linkedin.com/dms-uploads/doc/0"
+    respx.post(DOCUMENTS_URL).mock(return_value=httpx.Response(200, json={
+        "value": {"uploadUrl": upload_url, "document": "urn:li:document:D1"}}))
+    put = respx.put(upload_url).mock(return_value=httpx.Response(201))
+    post = respx.post(POSTS_URL).mock(return_value=httpx.Response(201, headers={"x-restli-id": "urn:li:share:9"}))
+
+    LinkedInClient("202609").create_post(valid_auth(), "Text", image=b"PNG", document=b"%PDF", document_title="Upgrade")
+
+    assert put.calls.last.request.content == b"%PDF"
+    assert json.loads(post.calls.last.request.content)["content"] == {"media": {"id": "urn:li:document:D1", "title": "Upgrade"}}
+
+
+def test_render_carousel_produces_one_page_per_slide(cfg):
+    import re
+
+    from linkedin_bot.integrations.carousel_pdf import render_carousel
+    from linkedin_bot.state import CarouselSpec, Slide
+
+    spec = CarouselSpec(title="Test", slides=[
+        Slide(kind="title", headline="Hook " * 20, body="Sehr langer Text " * 40),  # muss schrumpfen, nicht crashen
+        Slide(kind="code", headline="Code", code="public function x(): string\n{\n    return 'y';\n}", language="php"),
+        Slide(kind="code", headline="Unbekannte Sprache", code="foo bar", language="klingonisch"),
+        Slide(kind="closing", headline="Frage?"),
+    ])
+    pdf = render_carousel(spec, cfg.carousel, cfg.carousel.footer)
+    assert pdf.startswith(b"%PDF")
+    assert len(re.findall(rb"/Type /Page[^s]", pdf)) == 4

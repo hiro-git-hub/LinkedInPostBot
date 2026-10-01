@@ -33,6 +33,11 @@ def make_imager(cfg: AppConfig, model: BaseChatModel, repo: Repository, generate
         ])
         key = image_key(config["configurable"]["thread_id"], variant)
         repo.save_image(key, generate(prompt.prompt), prompt.prompt)
-        return {"image_prompts": {variant: prompt}, "notice": None}
+        replaced = variant in (state.get("carousels") or {})
+        return {
+            "image_prompts": {variant: prompt},
+            "carousels": {variant: None},  # ein Post hat nur ein Medium
+            "notice": "Das Bild ersetzt das Karussell dieser Version." if replaced else None,
+        }
 
     return image_node

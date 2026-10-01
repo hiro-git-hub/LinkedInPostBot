@@ -67,6 +67,20 @@ class ImagePrompt(BaseModel):
     alt_text: str = Field(description="Kurzer deutscher Alt-Text (max. 120 Zeichen)")
 
 
+class Slide(BaseModel):
+    kind: Literal["title", "text", "code", "closing"] = Field(
+        description="title = erste Folie mit Hook, text = Aussage + kurzer Text, code = Code-Beispiel, closing = Schluss mit Frage")
+    headline: str = Field(description="Kurze, starke Überschrift der Folie (max. ~60 Zeichen)")
+    body: str = Field(default="", description="1-3 kurze Sätze (max. ~220 Zeichen); bei code optional eine Zeile Erklärung")
+    code: str = Field(default="", description="Nur bei kind=code: kurzes Snippet, max. 12 Zeilen à max. 46 Zeichen")
+    language: str = Field(default="", description="Nur bei kind=code: Sprache für Syntax-Highlighting, z.B. php, twig, javascript, python, yaml")
+
+
+class CarouselSpec(BaseModel):
+    title: str = Field(description="Dokumenttitel, den LinkedIn über dem Karussell anzeigt (max. ~60 Zeichen)")
+    slides: list[Slide]
+
+
 Variant = Literal["normal", "humor"]
 VARIANTS: tuple[Variant, ...] = ("normal", "humor")
 
@@ -87,7 +101,7 @@ def merge_drafts(current: dict | None, update: dict | None) -> dict:
     return {k: v for k, v in merged.items() if v is not None}
 
 
-Action = Literal["approve", "edit", "revise", "new_topic", "reject", "image", "no_image"]
+Action = Literal["approve", "edit", "revise", "new_topic", "reject", "image", "no_image", "carousel", "no_carousel"]
 
 
 class Decision(TypedDict, total=False):
@@ -128,6 +142,8 @@ class State(TypedDict, total=False):
     hashtags: list[str]
     # Je Variante ein optionales Bild; die Bytes liegen im Repository (Schlüssel: image_key).
     image_prompts: Annotated[dict[str, ImagePrompt], merge_drafts]
+    # Je Variante optional ein Karussell (ersetzt dort das Bild – ein Post hat nur ein Medium); PDF im Repository.
+    carousels: Annotated[dict[str, CarouselSpec], merge_drafts]
     # Human-in-the-Loop
     decision: Action | Literal["review"]
     variant: Variant  # gewählte bzw. zu überarbeitende Variante

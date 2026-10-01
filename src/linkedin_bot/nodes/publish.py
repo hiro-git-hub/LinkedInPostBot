@@ -7,6 +7,7 @@ from linkedin_bot.config import AppConfig
 from linkedin_bot.db import Repository
 from linkedin_bot.integrations.linkedin import LinkedInClient, LinkedInError
 from linkedin_bot.nodes.dedup import normalize_url
+from linkedin_bot.nodes.carousel import carousel_key
 from linkedin_bot.nodes.image import image_key
 from linkedin_bot.state import State
 
@@ -24,9 +25,11 @@ def make_publisher(cfg: AppConfig, repo: Repository, client: LinkedInClient | No
         if auth is None or auth.expired:
             return {"status": "publish_failed", "post_urn": None, "publish_error": LOGIN_HINT}
 
-        variant = state["variant"]
+        variant, thread_id = state["variant"], config["configurable"]["thread_id"]
         image_prompt = (state.get("image_prompts") or {}).get(variant)
-        image = repo.get_image(image_key(config["configurable"]["thread_id"], variant)) if image_prompt else None
+        image = repo.get_image(image_key(thread_id, variant)) if image_prompt else None
+        carousel = (state.get("carousels") or {}).get(variant)
+        document = repo.get_image(carousel_key(thread_id, variant)) if carousel else None
         # Erst hier erzeugen: im Dry-Run braucht es keine LinkedIn-Credentials.
         linkedin = client or LinkedInClient(cfg.linkedin.api_version)
         try:
@@ -37,6 +40,8 @@ def make_publisher(cfg: AppConfig, repo: Repository, client: LinkedInClient | No
                 image=image,
                 alt_text=image_prompt.alt_text if image_prompt else "",
                 visibility=cfg.linkedin.visibility,
+                document=document,
+                document_title=carousel.title if carousel else "",
             )
         except (LinkedInError, httpx.HTTPError) as exc:
             log.exception("Veröffentlichung fehlgeschlagen")

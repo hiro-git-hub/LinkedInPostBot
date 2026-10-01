@@ -30,6 +30,7 @@ CREATE TABLE IF NOT EXISTS posts (
     "ALTER TABLE posts ADD COLUMN IF NOT EXISTS variant TEXT",
     "ALTER TABLE posts ADD COLUMN IF NOT EXISTS has_image BOOLEAN NOT NULL DEFAULT false",
     "ALTER TABLE posts ADD COLUMN IF NOT EXISTS category TEXT",
+    "ALTER TABLE posts ADD COLUMN IF NOT EXISTS has_carousel BOOLEAN NOT NULL DEFAULT false",
     # Aktuelles Bild je Lauf – Bytes gehören nicht in den Checkpoint.
     """
 CREATE TABLE IF NOT EXISTS images (
@@ -61,7 +62,8 @@ class Repository(Protocol):
     def recent_categories(self, limit: int) -> list[str]: ...
     def save_post(self, thread_id: str, item: NewsItem, text: str, status: str,
                   post_urn: str | None = None, error: str | None = None,
-                  variant: str | None = None, has_image: bool = False, category: str | None = None) -> None: ...
+                  variant: str | None = None, has_image: bool = False, category: str | None = None,
+                  has_carousel: bool = False) -> None: ...
     def save_image(self, thread_id: str, data: bytes, prompt: str) -> None: ...
     def get_image(self, thread_id: str) -> bytes | None: ...
     def get_linkedin_auth(self) -> LinkedInAuth | None: ...
@@ -106,12 +108,14 @@ class PostgresRepository:
 
     def save_post(self, thread_id: str, item: NewsItem, text: str, status: str,
                   post_urn: str | None = None, error: str | None = None,
-                  variant: str | None = None, has_image: bool = False, category: str | None = None) -> None:
+                  variant: str | None = None, has_image: bool = False, category: str | None = None,
+                  has_carousel: bool = False) -> None:
         with self.pool.connection() as conn:
             conn.execute(
                 "INSERT INTO posts (thread_id, topic_title, topic_url, text, status, post_urn, error, variant, "
-                "has_image, category) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
-                (thread_id, item.title, item.url, text, status, post_urn, error, variant, has_image, category),
+                "has_image, category, has_carousel) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                (thread_id, item.title, item.url, text, status, post_urn, error, variant, has_image, category,
+                 has_carousel),
             )
 
     def recent_categories(self, limit: int) -> list[str]:
@@ -177,10 +181,11 @@ class InMemoryRepository:
 
     def save_post(self, thread_id: str, item: NewsItem, text: str, status: str,
                   post_urn: str | None = None, error: str | None = None,
-                  variant: str | None = None, has_image: bool = False, category: str | None = None) -> None:
+                  variant: str | None = None, has_image: bool = False, category: str | None = None,
+                  has_carousel: bool = False) -> None:
         self.posts.append({"thread_id": thread_id, "item": item, "text": text, "status": status,
                            "post_urn": post_urn, "error": error, "variant": variant, "has_image": has_image,
-                           "category": category, "created_at": datetime.now(UTC)})
+                           "category": category, "has_carousel": has_carousel, "created_at": datetime.now(UTC)})
 
     def recent_categories(self, limit: int) -> list[str]:
         posted = [p for p in reversed(self.posts) if p["status"] in POSTED_STATUSES and p["category"]]

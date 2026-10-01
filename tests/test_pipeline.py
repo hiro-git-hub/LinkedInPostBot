@@ -184,10 +184,14 @@ class FakeLinkedIn:
             raise self.comment_error
         self.comments.append((post_urn, text))
 
-    def create_post(self, auth, text, hashtags=None, image=None, alt_text="", visibility="PUBLIC"):
+    def create_post(self, auth, text, hashtags=None, image=None, alt_text="", visibility="PUBLIC",
+                    document=None, document_title=""):
         if self.error:
             raise self.error
-        self.posts.append({"text": text, "hashtags": hashtags, "image": image, "alt_text": alt_text})
+        post = {"text": text, "hashtags": hashtags, "image": image, "alt_text": alt_text}
+        if document:
+            post.update(document=document, document_title=document_title)
+        self.posts.append(post)
         return "urn:li:share:123"
 
 
@@ -272,3 +276,38 @@ def test_clean_tags():
 def test_split_hashtags():
     assert split_hashtags("Text\n\n#KI #Shopware\n") == ("Text", ["KI", "Shopware"])
     assert split_hashtags("Text mit #inline Tag") == ("Text mit #inline Tag", [])
+
+
+# --- Karussell ---------------------------------------------------------------------------------------
+
+def test_carousel_replaces_image_and_is_published_as_document(cfg, sources):
+    from linkedin_bot.nodes.carousel import carousel_key
+
+    cfg.linkedin.dry_run = False
+    repo, linkedin = InMemoryRepository(), FakeLinkedIn()
+    repo.save_linkedin_auth(valid_auth())
+    graph = make_graph(cfg, Models(TOPIC), repo, linkedin=linkedin)
+    step = start_run(graph)
+
+    step = resume(graph, step.thread_id, Decision(action="image", variant="normal"))
+    step = resume(graph, step.thread_id, Decision(action="carousel", variant="normal"))
+    assert step.pending["images"] == {}  # ein Post hat nur ein Medium
+    assert step.pending["carousels"] == {"normal": f"Shopware 6.7 Upgrade ({cfg.carousel.slides.max} Folien)"}
+    assert "ersetzt das Bild" in step.pending["notice"]
+    pdf = repo.get_image(carousel_key(step.thread_id, "normal"))
+    assert pdf == f"PDF:Shopware 6.7 Upgrade:{cfg.carousel.slides.max}:{cfg.carousel.footer}".encode()
+
+    step = resume(graph, step.thread_id, approve("normal"))
+    assert step.state["status"] == "published"
+    assert linkedin.posts[0]["document"] == pdf
+    assert linkedin.posts[0]["document_title"] == "Shopware 6.7 Upgrade"
+    assert repo.posts[0]["has_carousel"] is True and repo.posts[0]["has_image"] is False
+
+
+def test_no_carousel_removes_it(cfg, sources):
+    graph = make_graph(cfg, Models(TOPIC))
+    step = start_run(graph)
+    step = resume(graph, step.thread_id, Decision(action="carousel", variant="humor"))
+    assert set(step.pending["carousels"]) == {"humor"}
+    step = resume(graph, step.thread_id, Decision(action="no_carousel", variant="humor"))
+    assert step.pending["carousels"] == {}

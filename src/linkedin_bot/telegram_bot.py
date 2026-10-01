@@ -21,6 +21,7 @@ from linkedin_bot.healthcheck import HEARTBEAT_INTERVAL_SECONDS, write_heartbeat
 from linkedin_bot.integrations.linkedin import LinkedInClient, LinkedInError, code_from_callback, params_from_url
 from linkedin_bot.nodes.approval import PLACEHOLDER, VARIANT_LABELS
 from linkedin_bot.nodes.hashtags import hashtag_line
+from linkedin_bot.nodes.carousel import carousel_key
 from linkedin_bot.nodes.image import image_key
 from linkedin_bot.runtime import (
     Runtime, Step, current_draft, is_awaiting_approval, outcome_message, pending_steps, render_header,
@@ -47,6 +48,7 @@ ASK_FOR_TEXT = {
 PROGRESS = {
     "new_topic": "⏳ Nehme ein anderes Thema und recherchiere neu …",
     "image": "🎨 Erzeuge ein Bild für die {label}-Version – dauert etwa eine Minute …",
+    "carousel": "📑 Baue ein Karussell für die {label}-Version …",
 }
 
 
@@ -61,11 +63,17 @@ def control_keyboard(thread_id: str) -> InlineKeyboardMarkup:
     ])
 
 
-def variant_keyboard(thread_id: str, variant: str, has_image: bool) -> InlineKeyboardMarkup:
+def variant_keyboard(thread_id: str, variant: str, has_image: bool, has_carousel: bool = False,
+                     carousel_enabled: bool = True) -> InlineKeyboardMarkup:
     image_row = ([_button("🔄 Neues Bild", "image", variant, thread_id), _button("🗑️ Ohne Bild", "no_image", variant, thread_id)]
                  if has_image else [_button("🖼️ Bild erzeugen", "image", variant, thread_id)])
     rows = [[_button(label, action, variant, thread_id) for label, action in row] for row in VARIANT_KEYBOARD]
-    return InlineKeyboardMarkup(rows + [image_row])
+    rows.append(image_row)
+    if carousel_enabled:
+        rows.append([_button("🔄 Neues Karussell", "carousel", variant, thread_id),
+                     _button("🗑️ Ohne Karussell", "no_carousel", variant, thread_id)]
+                    if has_carousel else [_button("📑 Karussell erzeugen", "carousel", variant, thread_id)])
+    return InlineKeyboardMarkup(rows)
 
 
 class ApprovalBot:
@@ -104,13 +112,21 @@ class ApprovalBot:
                 if variant not in pending["drafts"]:
                     continue
                 has_image = variant in pending["images"]
+                has_carousel = variant in pending.get("carousels", {})
+                if has_carousel:
+                    pdf = await asyncio.to_thread(self.repo.get_image, carousel_key(step.thread_id, variant))
+                    if pdf:
+                        await app.bot.send_document(
+                            self.chat_id, pdf, filename=f"karussell-{variant}.pdf",
+                            caption=f"📑 {VARIANT_LABELS[variant]}: {pending['carousels'][variant]}"[:1024])
                 if has_image:
                     image = await asyncio.to_thread(self.repo.get_image, image_key(step.thread_id, variant))
                     if image:
                         caption = f"🖼️ {VARIANT_LABELS[variant]}: {pending['images'][variant]}"
                         await app.bot.send_photo(self.chat_id, image, caption=caption[:1024])
                 await app.bot.send_message(self.chat_id, render_variant(pending, variant)[:TELEGRAM_LIMIT],
-                                           reply_markup=variant_keyboard(step.thread_id, variant, has_image))
+                                           reply_markup=variant_keyboard(step.thread_id, variant, has_image, has_carousel,
+                                                                         self.cfg.carousel.enabled))
         else:
             await app.bot.send_message(self.chat_id, outcome_message(step.state)[:TELEGRAM_LIMIT])
 

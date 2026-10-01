@@ -48,7 +48,9 @@ Im Telegram-Chat: `/run` startet sofort einen Lauf, `/offen` schickt offene Entw
 LinkedIn an. Jeder Entwurf kommt als **Normal-** und **Humor-Version** mit 3–6 Hashtags:
 - pro Version: **Diese Version freigeben**, **Bearbeiten** (eigenen Text schicken, Hashtags am Ende werden übernommen),
   **Überarbeiten lassen** (Feedback an den Writer)
-- für den Entwurf: **Bild erzeugen** / **Neues Bild** / **Ohne Bild**, **Anderes Thema**, **Verwerfen**
+- pro Version außerdem: **Bild erzeugen** / **Neues Bild** / **Ohne Bild** und **Karussell erzeugen** (PDF-Dokumentpost
+  mit Code-Highlighting) – ein Post hat nur ein Medium, Karussell und Bild ersetzen sich gegenseitig
+- für den Entwurf: **Anderes Thema**, **Verwerfen**
 
 Solange ein `[EIGENE ERFAHRUNG: …]`-Platzhalter im Text steht, lässt sich die Version nicht freigeben.
 
@@ -72,6 +74,8 @@ Solange ein `[EIGENE ERFAHRUNG: …]`-Platzhalter im Text steht, lässt sich die
 | `src/linkedin_bot/nodes/` | Dedup, Scorer, Selector, Research-Agent, Compose (Writer + Critic je Variante), Hashtags, Image, Approval/Archiv |
 | `src/linkedin_bot/nodes/rules.py` | Harte, deterministische Regeln (Länge, Checklisten, Hashtags) |
 | `src/linkedin_bot/integrations/linkedin.py` | OAuth, Posts- und Images-API, little-Text-Escaping, Hashtag-Templates |
+| `src/linkedin_bot/integrations/carousel_pdf.py` | Karussell-PDF (reportlab, Pygments; Schriften in `assets/fonts`, OFL) |
+| `src/linkedin_bot/budget.py` | Kostenbremse (Token-Kosten je Lauf, Preise aus `config.yaml`) |
 | `src/linkedin_bot/integrations/images.py` | Bildgenerierung (OpenAI, Modell in `config.yaml` → `images`) |
 | `src/linkedin_bot/login.py` | Browser-Login mit lokalem Callback-Server |
 | `src/linkedin_bot/collectors/`, `tools/` | RSS, Hacker News, Tavily-Suche, Artikel-Extraktion |

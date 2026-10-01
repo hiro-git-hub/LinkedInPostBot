@@ -13,6 +13,7 @@ TOKEN_URL = "https://www.linkedin.com/oauth/v2/accessToken"
 USERINFO_URL = "https://api.linkedin.com/v2/userinfo"
 POSTS_URL = "https://api.linkedin.com/rest/posts"
 IMAGES_URL = "https://api.linkedin.com/rest/images?action=initializeUpload"
+DOCUMENTS_URL = "https://api.linkedin.com/rest/documents?action=initializeUpload"
 COMMENTS_URL = "https://api.linkedin.com/rest/socialActions/{urn}/comments"
 SCOPES = "openid profile w_member_social"
 DEFAULT_REDIRECT_URI = "http://localhost:8765/callback"
@@ -116,19 +117,26 @@ class LinkedInClient:
             "X-Restli-Protocol-Version": "2.0.0",
         }
 
-    def upload_image(self, auth: LinkedInAuth, data: bytes) -> str:
-        """Registriert ein Bild, lädt die Bytes hoch und gibt die Bild-URN zurück."""
-        response = self.http.post(IMAGES_URL, headers=self._headers(auth),
+    def _upload(self, auth: LinkedInAuth, url: str, urn_field: str, data: bytes, what: str) -> str:
+        """initializeUpload -> PUT der Bytes -> URN (gleicher Ablauf für Bilder und Dokumente)."""
+        response = self.http.post(url, headers=self._headers(auth),
                                   json={"initializeUploadRequest": {"owner": auth.person_urn}})
-        self._raise_for_status(response, "Bild-Upload vorbereiten")
+        self._raise_for_status(response, f"{what}-Upload vorbereiten")
         value = response.json()["value"]
         upload = self.http.put(value["uploadUrl"], content=data, headers={"Authorization": f"Bearer {auth.access_token}"})
-        self._raise_for_status(upload, "Bild hochladen")
-        return value["image"]
+        self._raise_for_status(upload, f"{what} hochladen")
+        return value[urn_field]
+
+    def upload_image(self, auth: LinkedInAuth, data: bytes) -> str:
+        return self._upload(auth, IMAGES_URL, "image", data, "Bild")
+
+    def upload_document(self, auth: LinkedInAuth, data: bytes) -> str:
+        return self._upload(auth, DOCUMENTS_URL, "document", data, "Dokument")
 
     def create_post(self, auth: LinkedInAuth, text: str, hashtags: list[str] | None = None,
-                    image: bytes | None = None, alt_text: str = "", visibility: str = "PUBLIC") -> str:
-        """Veröffentlicht einen Post (optional mit Bild) und gibt dessen URN zurück."""
+                    image: bytes | None = None, alt_text: str = "", visibility: str = "PUBLIC",
+                    document: bytes | None = None, document_title: str = "") -> str:
+        """Veröffentlicht einen Post (optional mit Bild oder PDF-Karussell) und gibt dessen URN zurück."""
         body = {
             "author": auth.person_urn,
             "commentary": build_commentary(text, hashtags or []),
@@ -137,7 +145,9 @@ class LinkedInClient:
             "lifecycleState": "PUBLISHED",
             "isReshareDisabledByAuthor": False,
         }
-        if image:
+        if document:  # ein Post hat nur ein Medium – das Karussell hat Vorrang
+            body["content"] = {"media": {"id": self.upload_document(auth, document), "title": document_title}}
+        elif image:
             body["content"] = {"media": {"id": self.upload_image(auth, image), "altText": alt_text}}
         response = self.http.post(POSTS_URL, headers=self._headers(auth), json=body)
         self._raise_for_status(response, "Post erstellen")

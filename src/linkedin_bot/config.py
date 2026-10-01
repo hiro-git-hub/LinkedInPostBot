@@ -83,6 +83,7 @@ class CarouselConfig(BaseModel):
     format: str = "1080x1350"
     code_highlighting: bool = True
     theme: CarouselTheme = Field(default_factory=CarouselTheme)
+    footer: str = ""  # Text unten links auf jeder Folie, z.B. Name und Rolle
 
     @property
     def page_size(self) -> tuple[int, int]:
