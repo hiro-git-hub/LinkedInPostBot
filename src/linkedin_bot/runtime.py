@@ -1,5 +1,6 @@
 """Verdrahtet Graph, Checkpointer und Datenbank und kapselt Start/Fortsetzen eines Laufs."""
 
+import logging
 import os
 import uuid
 from collections.abc import Iterator
@@ -24,6 +25,8 @@ from linkedin_bot.integrations.linkedin import post_url
 from linkedin_bot.nodes.approval import VARIANT_LABELS, post_text
 from linkedin_bot.nodes.hashtags import hashtag_line
 from linkedin_bot.state import Decision, Variant
+
+log = logging.getLogger(__name__)
 
 # Pydantic-Modelle im State, die der Checkpointer wiederherstellen darf.
 CHECKPOINT_TYPES = [
@@ -112,7 +115,11 @@ def pending_steps(graph: CompiledStateGraph) -> list[Step]:
     thread_ids = {c.config["configurable"]["thread_id"] for c in graph.checkpointer.list(None)}
     steps = []
     for thread_id in sorted(thread_ids):
-        snapshot = graph.get_state({"configurable": {"thread_id": thread_id}})
+        try:
+            snapshot = graph.get_state({"configurable": {"thread_id": thread_id}})
+        except Exception:  # z.B. Checkpoint aus einer älteren Version mit anderem Schema
+            log.warning("Lauf %s übersprungen – Zustand nicht lesbar", thread_id, exc_info=True)
+            continue
         # Entwürfe aus älteren Versionen (anderes Payload-Format) nicht mehr zustellen.
         if "approval" in snapshot.next and snapshot.interrupts and "images" in snapshot.interrupts[0].value:
             steps.append(Step(thread_id=thread_id, pending=snapshot.interrupts[0].value, state=snapshot.values))
