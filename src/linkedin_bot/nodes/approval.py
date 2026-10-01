@@ -19,14 +19,13 @@ def post_text(state: State, variant: str) -> str:
 def approval_node(state: State) -> dict:
     """Pausiert den Graph, bis der Autor entscheidet. Der Resume-Wert ist eine `Decision`."""
     item = state["selected"].item
-    image = state.get("image_prompt")
+    images = state.get("image_prompts") or {}
     decision: Decision = interrupt({
         "title": item.title,
         "url": item.url,
         "drafts": state["drafts"],
         "hashtags": state.get("hashtags") or [],
-        "has_image": image is not None,
-        "image_alt": image.alt_text if image else None,
+        "images": {variant: prompt.alt_text for variant, prompt in images.items()},  # Variante -> Alt-Text
         "notice": state.get("notice"),
     })
     action, variant = decision["action"], decision.get("variant", "normal")
@@ -45,12 +44,13 @@ def approval_node(state: State) -> dict:
         return {"decision": "review", "notice": f"In der {VARIANT_LABELS[variant]}-Version steht noch ein "
                                                 "[EIGENE ERFAHRUNG]-Platzhalter – bitte über ✏️ Bearbeiten füllen oder entfernen."}
     if action == "no_image":
-        return {"decision": "review", "image_prompt": None, "notice": "Bild entfernt – der Post geht ohne Bild raus."}
+        return {"decision": "review", "image_prompts": {variant: None},
+                "notice": f"Bild der {VARIANT_LABELS[variant]}-Version entfernt."}
     if action == "new_topic":
         return {
             "decision": "new_topic",
             "rejected_urls": [item.url],
-            "drafts": None, "hashtags": [], "image_prompt": None, "notice": None,
+            "drafts": None, "hashtags": [], "image_prompts": None, "notice": None,
         }
     return {"decision": action, "variant": variant, "human_feedback": decision.get("text"), "notice": None}
 
@@ -90,7 +90,8 @@ def make_archive(repo: Repository):
             config["configurable"]["thread_id"], state["selected"].item, post_text(state, variant),
             state["status"] if approved else "rejected",
             post_urn=state.get("post_urn"), error=state.get("publish_error"),
-            variant=variant if approved else None, has_image=approved and state.get("image_prompt") is not None,
+            variant=variant if approved else None,
+            has_image=approved and variant in (state.get("image_prompts") or {}),
         )
         return {"status": state["status"] if approved else "rejected"}
 

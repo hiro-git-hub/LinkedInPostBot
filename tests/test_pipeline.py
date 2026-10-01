@@ -32,7 +32,7 @@ def test_run_writes_both_variants_with_hashtags(cfg, sources):
     assert pending["drafts"]["normal"].text == draft(1).strip()
     assert pending["drafts"]["humor"].text == draft(1, "humor").strip()
     assert pending["hashtags"] == ["KI", "DevTools"]  # bereinigt und dedupliziert
-    assert pending["has_image"] is False
+    assert pending["images"] == {}
 
 
 def test_humor_writer_gets_humor_instructions(cfg, sources):
@@ -137,18 +137,26 @@ def test_new_topic_picks_another_candidate(cfg, sources):
     assert step.pending is None  # keine Kandidaten mehr
 
 
-def test_image_on_demand_and_removal(cfg, sources):
+def test_images_per_variant_and_removal(cfg, sources):
+    from linkedin_bot.nodes.image import HUMOR_HINT, image_key
+
     repo = InMemoryRepository()
-    graph = make_graph(cfg, Models(TOPIC), repo)
+    models = Models(TOPIC)
+    graph = make_graph(cfg, models, repo)
     step = start_run(graph)
 
-    step = resume(graph, step.thread_id, Decision(action="image"))
-    assert step.pending["has_image"] is True
-    assert step.pending["image_alt"] == "Leuchtturm aus Platinen"
-    assert repo.get_image(step.thread_id) == b"PNG:a lighthouse made of circuits"
+    step = resume(graph, step.thread_id, Decision(action="image", variant="humor"))
+    assert step.pending["images"] == {"humor": "Leuchtturm aus Platinen"}
+    assert repo.get_image(image_key(step.thread_id, "humor")) == b"PNG:a lighthouse made of circuits"
+    prompt_messages = models.roles["image_prompt"].calls[-1]
+    assert HUMOR_HINT.strip() in prompt_messages[0].content  # Bildidee darf die Ironie aufgreifen
+    assert draft(1, "humor").strip() in prompt_messages[-1].content  # aus dem Humor-Text, nicht dem normalen
 
-    step = resume(graph, step.thread_id, Decision(action="no_image"))
-    assert step.pending["has_image"] is False
+    step = resume(graph, step.thread_id, Decision(action="image", variant="normal"))
+    assert set(step.pending["images"]) == {"normal", "humor"}
+
+    step = resume(graph, step.thread_id, Decision(action="no_image", variant="humor"))
+    assert set(step.pending["images"]) == {"normal"}
 
 
 def test_pending_steps_lists_only_waiting_threads(cfg, sources):
@@ -186,7 +194,7 @@ def run_and_approve(cfg, repo, linkedin, variant="normal", with_image=False):
     graph = make_graph(cfg, Models(TOPIC), repo, linkedin=linkedin)
     step = start_run(graph)
     if with_image:
-        step = resume(graph, step.thread_id, Decision(action="image"))
+        step = resume(graph, step.thread_id, Decision(action="image", variant=variant))
     return resume(graph, step.thread_id, approve(variant))
 
 

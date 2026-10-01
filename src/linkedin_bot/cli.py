@@ -6,6 +6,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 from linkedin_bot.config import load_config
+from linkedin_bot.nodes.image import image_key
 from linkedin_bot.runtime import Step, open_runtime, outcome_message, render_pending, resume, start_run
 from linkedin_bot.state import Decision
 
@@ -24,11 +25,11 @@ def print_candidates(step: Step, top: int) -> None:
 
 def ask_decision() -> Decision:
     prompt = ("\n[fn/fh] freigeben  [bn/bh] bearbeiten  [un/uh] überarbeiten lassen (n=Normal, h=Humor)\n"
-              "[i] Bild erzeugen  [x] ohne Bild  [t] anderes Thema  [v] verwerfen: ")
+              "[in/ih] Bild erzeugen  [xn/xh] ohne Bild  [t] anderes Thema  [v] verwerfen: ")
     while True:
         choice = input(prompt).strip().lower()
         action, variant = CONSOLE_ACTIONS.get(choice[:1]), VARIANT_KEYS.get(choice[1:2])
-        if action in ("approve", "edit", "revise") and not variant:
+        if action in ("approve", "edit", "revise", "image", "no_image") and not variant:
             print("Bitte Variante angeben, z.B. 'fn' oder 'bh'.")
             continue
         if action == "edit":
@@ -36,7 +37,7 @@ def ask_decision() -> Decision:
             return Decision(action=action, variant=variant, text="\n".join(iter(input, ".")))
         if action == "revise":
             return Decision(action=action, variant=variant, text=input("Feedback an den Writer: "))
-        if action == "approve":
+        if variant:
             return Decision(action=action, variant=variant)
         if action:
             return Decision(action=action)
@@ -50,10 +51,10 @@ def run_console(args) -> None:
         print_candidates(step, args.top)
         while step.pending:
             print(f"\n{'=' * 70}\n{render_pending(step.pending)}\n{'=' * 70}")
-            if step.pending["has_image"]:
-                path = Path(tempfile.gettempdir()) / f"linkedin-bot-{step.thread_id}.png"
-                path.write_bytes(runtime.repo.get_image(step.thread_id))
-                print(f"🖼️ Bild gespeichert: {path}")
+            for variant in step.pending["images"]:
+                path = Path(tempfile.gettempdir()) / f"linkedin-bot-{step.thread_id}-{variant}.png"
+                path.write_bytes(runtime.repo.get_image(image_key(step.thread_id, variant)))
+                print(f"🖼️ Bild ({variant}) gespeichert: {path}")
             step = resume(graph, step.thread_id, ask_decision())
         print("\n" + outcome_message(step.state))
 

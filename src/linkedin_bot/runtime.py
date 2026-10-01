@@ -107,8 +107,8 @@ def pending_steps(graph: CompiledStateGraph) -> list[Step]:
     steps = []
     for thread_id in sorted(thread_ids):
         snapshot = graph.get_state({"configurable": {"thread_id": thread_id}})
-        # Entwürfe aus älteren Versionen (ohne Varianten) nicht mehr zustellen.
-        if "approval" in snapshot.next and snapshot.interrupts and "drafts" in snapshot.interrupts[0].value:
+        # Entwürfe aus älteren Versionen (anderes Payload-Format) nicht mehr zustellen.
+        if "approval" in snapshot.next and snapshot.interrupts and "images" in snapshot.interrupts[0].value:
             steps.append(Step(thread_id=thread_id, pending=snapshot.interrupts[0].value, state=snapshot.values))
     return steps
 
@@ -132,7 +132,6 @@ def render_header(pending: dict) -> str:
     if pending.get("notice"):
         lines += [f"⚠️ {pending['notice']}", ""]
     lines.append(f"🏷️ {hashtag_line(pending['hashtags']) or '(keine Hashtags)'}")
-    lines.append(f"🖼️ {'Bild: ' + pending['image_alt'] if pending['has_image'] else 'Kein Bild'}")
     lines.append("\nUnten stehen beide Versionen – gib die gewünschte frei.")
     return "\n".join(lines)
 
@@ -141,6 +140,8 @@ def render_variant(pending: dict, variant: Variant) -> str:
     draft = pending["drafts"][variant]
     lines = [f"{VARIANT_ICONS[variant]} {VARIANT_LABELS[variant]}-Version", "", draft.text, "",
              f"— {len(draft.text)} Zeichen"]
+    if variant in pending["images"]:
+        lines.append(f"🖼️ Mit Bild: {pending['images'][variant]}")
     critique = draft.critique
     if critique is None:
         lines.append("Von dir bearbeitet ✏️")

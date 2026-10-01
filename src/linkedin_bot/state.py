@@ -76,10 +76,13 @@ class DraftVariant(BaseModel):
 
 
 def merge_drafts(current: dict | None, update: dict | None) -> dict:
-    """Parallel geschriebene Varianten zusammenführen; `None` setzt zurück (neues Thema)."""
+    """Parallel geschriebene Varianten zusammenführen; `None` setzt zurück (neues Thema).
+
+    Ein Eintrag mit Wert `None` entfernt nur diese Variante (z.B. "Ohne Bild")."""
     if update is None:
         return {}
-    return {**(current or {}), **update}
+    merged = {**(current or {}), **update}
+    return {k: v for k, v in merged.items() if v is not None}
 
 
 Action = Literal["approve", "edit", "revise", "new_topic", "reject", "image", "no_image"]
@@ -121,7 +124,8 @@ class State(TypedDict, total=False):
     research: Research
     drafts: Annotated[dict[str, DraftVariant], merge_drafts]
     hashtags: list[str]
-    image_prompt: ImagePrompt | None  # gesetzt, wenn ein Bild erzeugt wurde (Bytes liegen im Repository)
+    # Je Variante ein optionales Bild; die Bytes liegen im Repository (Schlüssel: image_key).
+    image_prompts: Annotated[dict[str, ImagePrompt], merge_drafts]
     # Human-in-the-Loop
     decision: Action | Literal["review"]
     variant: Variant  # gewählte bzw. zu überarbeitende Variante

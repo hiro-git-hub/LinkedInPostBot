@@ -10,18 +10,29 @@ from linkedin_bot.state import ImagePrompt, State
 
 ImageGenerator = Callable[[str], bytes]
 
+HUMOR_HINT = (
+    "\n\nDas Bild gehört zur sarkastischen Version des Posts: Das Motiv darf die Ironie aufgreifen – "
+    "eine leicht absurde, aber glaubwürdige Szene oder ein visueller Widerspruch. Der Stil bleibt verbindlich."
+)
+
+
+def image_key(thread_id: str, variant: str) -> str:
+    return f"{thread_id}:{variant}"
+
 
 def make_imager(cfg: AppConfig, model: BaseChatModel, repo: Repository, generate: ImageGenerator):
     system = (cfg.prompts_dir / "image.md").read_text().format(style=cfg.images.style)
     structured = model.with_structured_output(ImagePrompt)
 
     def image_node(state: State, config: RunnableConfig) -> dict:
+        variant = state["variant"]
         item = state["selected"].item
         prompt: ImagePrompt = structured.invoke([
-            SystemMessage(system),
-            HumanMessage(f"Thema: {item.title}\n\nPost:\n{state['drafts']['normal'].text}"),
+            SystemMessage(system + (HUMOR_HINT if variant == "humor" else "")),
+            HumanMessage(f"Thema: {item.title}\n\nPost:\n{state['drafts'][variant].text}"),
         ])
-        repo.save_image(config["configurable"]["thread_id"], generate(prompt.prompt), prompt.prompt)
-        return {"image_prompt": prompt, "notice": None}
+        key = image_key(config["configurable"]["thread_id"], variant)
+        repo.save_image(key, generate(prompt.prompt), prompt.prompt)
+        return {"image_prompts": {variant: prompt}, "notice": None}
 
     return image_node

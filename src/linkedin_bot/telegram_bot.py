@@ -20,6 +20,7 @@ from linkedin_bot.healthcheck import HEARTBEAT_INTERVAL_SECONDS, write_heartbeat
 from linkedin_bot.integrations.linkedin import LinkedInClient, LinkedInError, code_from_callback, params_from_url
 from linkedin_bot.nodes.approval import PLACEHOLDER, VARIANT_LABELS
 from linkedin_bot.nodes.hashtags import hashtag_line
+from linkedin_bot.nodes.image import image_key
 from linkedin_bot.runtime import (
     Runtime, Step, current_draft, is_awaiting_approval, outcome_message, pending_steps, render_header,
     render_variant, resume, start_run,
@@ -44,7 +45,7 @@ ASK_FOR_TEXT = {
 }
 PROGRESS = {
     "new_topic": "⏳ Nehme ein anderes Thema und recherchiere neu …",
-    "image": "🎨 Erzeuge ein Bild – dauert etwa eine Minute …",
+    "image": "🎨 Erzeuge ein Bild für die {label}-Version – dauert etwa eine Minute …",
 }
 
 
@@ -53,19 +54,17 @@ def _button(label: str, action: str, variant: str, thread_id: str) -> InlineKeyb
     return InlineKeyboardButton(label, callback_data=f"{action}|{variant}|{thread_id}")
 
 
-def control_keyboard(thread_id: str, has_image: bool) -> InlineKeyboardMarkup:
-    image_row = ([_button("🔄 Neues Bild", "image", "", thread_id), _button("🗑️ Ohne Bild", "no_image", "", thread_id)]
-                 if has_image else [_button("🖼️ Bild erzeugen", "image", "", thread_id)])
+def control_keyboard(thread_id: str) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([
-        image_row,
         [_button("🔀 Anderes Thema", "new_topic", "", thread_id), _button("❌ Verwerfen", "reject", "", thread_id)],
     ])
 
 
-def variant_keyboard(thread_id: str, variant: str) -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup([
-        [_button(label, action, variant, thread_id) for label, action in row] for row in VARIANT_KEYBOARD
-    ])
+def variant_keyboard(thread_id: str, variant: str, has_image: bool) -> InlineKeyboardMarkup:
+    image_row = ([_button("🔄 Neues Bild", "image", variant, thread_id), _button("🗑️ Ohne Bild", "no_image", variant, thread_id)]
+                 if has_image else [_button("🖼️ Bild erzeugen", "image", variant, thread_id)])
+    rows = [[_button(label, action, variant, thread_id) for label, action in row] for row in VARIANT_KEYBOARD]
+    return InlineKeyboardMarkup(rows + [image_row])
 
 
 class ApprovalBot:
@@ -97,15 +96,18 @@ class ApprovalBot:
         if step.pending:
             pending = step.pending
             await app.bot.send_message(self.chat_id, render_header(pending)[:TELEGRAM_LIMIT],
-                                       reply_markup=control_keyboard(step.thread_id, pending["has_image"]))
-            if pending["has_image"]:
-                image = await asyncio.to_thread(self.repo.get_image, step.thread_id)
-                if image:
-                    await app.bot.send_photo(self.chat_id, image, caption=f"🖼️ {pending['image_alt']}"[:1024])
+                                       reply_markup=control_keyboard(step.thread_id))
             for variant in VARIANTS:
-                if variant in pending["drafts"]:
-                    await app.bot.send_message(self.chat_id, render_variant(pending, variant)[:TELEGRAM_LIMIT],
-                                               reply_markup=variant_keyboard(step.thread_id, variant))
+                if variant not in pending["drafts"]:
+                    continue
+                has_image = variant in pending["images"]
+                if has_image:
+                    image = await asyncio.to_thread(self.repo.get_image, image_key(step.thread_id, variant))
+                    if image:
+                        caption = f"🖼️ {VARIANT_LABELS[variant]}: {pending['images'][variant]}"
+                        await app.bot.send_photo(self.chat_id, image, caption=caption[:1024])
+                await app.bot.send_message(self.chat_id, render_variant(pending, variant)[:TELEGRAM_LIMIT],
+                                           reply_markup=variant_keyboard(step.thread_id, variant, has_image))
         else:
             await app.bot.send_message(self.chat_id, outcome_message(step.state)[:TELEGRAM_LIMIT])
 
@@ -227,7 +229,8 @@ class ApprovalBot:
                 await context.bot.send_message(self.chat_id, full[:TELEGRAM_LIMIT])
             return
         if action in PROGRESS:
-            await context.bot.send_message(self.chat_id, PROGRESS[action])
+            label = VARIANT_LABELS.get(variant, "")
+            await context.bot.send_message(self.chat_id, PROGRESS[action].format(label=label))
         decision = Decision(action=action, variant=variant) if variant else Decision(action=action)
         context.application.create_task(self.advance(context.application, resume, thread_id, decision))
 
