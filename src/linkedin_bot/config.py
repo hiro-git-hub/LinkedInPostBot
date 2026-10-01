@@ -40,6 +40,9 @@ class WritingConfig(BaseModel):
     min_chars: int = 900
     max_chars: int = 1800
     max_revisions: int = 2
+    # Hook = alles vor der ersten Leerzeile; LinkedIn zeigt mobil nur ~2 Zeilen vor "…mehr".
+    hook_max_lines: int = 2
+    hook_max_chars: int = 150
     # Abgenutzte Formulierungen – kommt eine davon vor, muss der Writer umformulieren.
     banned_phrases: list[str] = Field(default_factory=list)
 

@@ -91,6 +91,8 @@ writing:
   min_chars: 900
   max_chars: 1800
   max_revisions: 2      # so oft darf der Critic den Entwurf zurückschicken
+  hook_max_lines: 2     # Hook = Text vor der ersten Leerzeile – mobil zeigt LinkedIn ~2 Zeilen vor "…mehr"
+  hook_max_chars: 150
   # Abgenutzte Formulierungen – der Critic lässt keinen Entwurf durch, der eine davon enthält.
   banned_phrases:
     - Aber kurz von vorn
@@ -99,3 +101,6 @@ writing:
     - Es bleibt spannend
     - In diesem Sinne
     - Hier ist der Punkt
+    - Stell dir vor
+    - Hast du dich schon mal gefragt
+    - Heute möchte ich

@@ -23,6 +23,8 @@ def build_system_prompt(cfg: AppConfig, variant: Variant = "normal") -> str:
         examples=load_examples(cfg),
         min_chars=cfg.writing.min_chars,
         max_chars=cfg.writing.max_chars,
+        hook_max_lines=cfg.writing.hook_max_lines,
+        hook_max_chars=cfg.writing.hook_max_chars,
         # ~7 Zeichen pro deutschem Wort inkl. Leerzeichen; Ziel bewusst unter dem Maximum.
         target_words=round((cfg.writing.min_chars + cfg.writing.max_chars) / 2 / 7),
     )

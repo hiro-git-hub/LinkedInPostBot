@@ -12,7 +12,9 @@ Prüfe:
 1. Fakten: Jede konkrete Aussage (Zahlen, Namen, Funktionen, Daten) muss durch die Recherche gedeckt sein.
    Liste nicht belegte Aussagen unter unsupported_claims auf. Meinungen und Einordnungen des Autors sind erlaubt.
 2. Erfundene persönliche Erlebnisse, Personen oder Termine sind ein harter Fehler (ausgenommen [EIGENE ERFAHRUNG: ...]-Platzhalter).
-3. Einstieg: Macht die erste Zeile neugierig, ohne "mehr anzeigen" zu klicken?
+3. Hook: Würdest du im Feed auf "…mehr" klicken? Ist sie konkret, überraschend, meinungsstark oder bissig –
+   oder weichgespült, generisch, eine Themenansage? Eine mittelmäßige Hook ist ein Grund, nicht freizugeben.
+   Mach dann einen konkreten, besseren Vorschlag.
 4. Substanz: Bringt der Post etwas Konkretes über die Nachricht mit, oder bleibt er allgemein?
 5. Stil: Passt der Ton zum Autor und zum Leitfaden? Klingt es nach einem Senior-Entwickler mit trockenem Humor –
    oder nach Berater-Prosa? Floskeln, Hype-Vokabular, Checklisten, Standard-Übergänge?

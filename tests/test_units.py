@@ -25,7 +25,7 @@ def test_dedupe_keeps_item_with_more_points():
 def test_rule_issues(cfg):
     assert rule_issues(draft(1), cfg) == []
     too_long = "x" * (cfg.writing.max_chars + 1)
-    assert "Zu lang" in rule_issues(too_long, cfg)[0]
+    assert any(i.startswith("Zu lang") for i in rule_issues(too_long, cfg))
     checklist = draft(1) + "\n- a\n- b\n• c\n1. d"
     assert any("Aufzählungszeilen" in i for i in rule_issues(checklist, cfg))
     assert any("Hashtags" in i for i in rule_issues(draft(1) + "\n#KI", cfg))
@@ -200,3 +200,15 @@ def test_author_profile_reaches_writer_critic_and_selector(cfg):
     assert cfg.author in build_system_prompt(cfg, "normal")
     for name in ("critic.md", "selector.md"):
         assert "{author}" in (cfg.prompts_dir / name).read_text()
+
+
+def test_hook_rules(cfg):
+    from linkedin_bot.nodes.rules import hook_of
+
+    body = "\n\n" + "Ein Satz mit Substanz. " * 45
+    assert hook_of("Zeile 1\nZeile 2\n\nText") == "Zeile 1\nZeile 2"
+    assert not [i for i in rule_issues("Kurze, harte Hook." + body, cfg) if "Hook" in i]
+    assert any("Hook zu lang (3 Zeilen" in i for i in rule_issues("Eins\nZwei\nDrei" + body, cfg))
+    assert any("Hook zu lang (1 Zeilen, 200" in i for i in rule_issues("x" * 200 + body, cfg))
+    # Ohne Leerzeile ist der ganze Text "Hook" -> fällt auf
+    assert any("Hook zu lang" in i for i in rule_issues("Ein Satz mit Substanz. " * 45, cfg))

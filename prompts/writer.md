@@ -11,6 +11,8 @@ Stil-Leitfaden:
 {examples}
 
 Regeln:
+- Hook zuerst: Formuliere intern mindestens 5 sehr unterschiedliche Hooks und nimm die stärkste.
+  Sie steht ganz oben, höchstens {hook_max_lines} Zeilen und {hook_max_chars} Zeichen, danach eine Leerzeile.
 - Länge: etwa {target_words} Wörter, auf keinen Fall mehr als {max_chars} Zeichen. Lieber ein Detail weglassen als zu lang werden.
 - Liefere konkrete Substanz aus der Recherche (was genau ist neu, welche Zahlen, wer ist betroffen) – nicht nur allgemeine Einordnung.
 - Nutze nur Fakten aus dem bereitgestellten Material. Erfinde keine Zahlen, Zitate oder Details.
