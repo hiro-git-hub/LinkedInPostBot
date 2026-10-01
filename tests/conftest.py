@@ -15,7 +15,7 @@ from langgraph.checkpoint.memory import InMemorySaver
 
 sys.path.insert(0, str(Path(__file__).parent))  # "from conftest import ..." in den Testmodulen
 
-from linkedin_bot.collectors.hackernews import ALGOLIA_URL  # noqa: E402
+from linkedin_bot.collectors.hackernews import ALGOLIA_BY_DATE_URL, ALGOLIA_URL  # noqa: E402
 from linkedin_bot.config import load_config  # noqa: E402
 from linkedin_bot.db import InMemoryRepository  # noqa: E402
 from linkedin_bot.graph import build_graph  # noqa: E402
@@ -57,7 +57,8 @@ HUMOR_MARKER = "HUMORVOLLE VARIANTE"  # steht in prompts/humor.md
 
 def draft(n: int, variant: str = "normal") -> str:
     prefix = "Humor-Entwurf" if variant == "humor" else "Entwurf"
-    return f"{prefix} {n}\n\n" + "Ein Satz mit Substanz. " * 45  # ~1000 Zeichen
+    # Erfüllt alle Formregeln: einzeilige Hook, ~1000 Zeichen, endet mit einer konkreten Frage.
+    return f"{prefix} {n}\n\n" + "Ein Satz mit Substanz. " * 43 + "Wie testet ihr RAG-Antworten im Shop?"
 
 
 def valid_auth(days: int = 30) -> LinkedInAuth:
@@ -103,7 +104,7 @@ def fake_scores(relevance: dict[str, int]):
         titles = [line for line in messages[-1].content.splitlines() if line.startswith("[")]
         return ScoreBatch(scores=[
             ItemScore(index=i, relevance=next((v for k, v in relevance.items() if k in t), 0),
-                      category="ai_software_dev", reason="weil")
+                      category="ki_entwicklung", reason="weil")
             for i, t in enumerate(titles)
         ])
     return score
@@ -123,7 +124,7 @@ class Models:
     """Alle Fake-Modelle eines Tests – als model_factory an build_graph übergeben."""
 
     def __init__(self, relevance: dict[str, int], reject_if=lambda text: False, writer=None,
-                 hashtags=("KI", "#Dev Tools", "ki")):
+                 hashtags=("KI", "#Dev Tools", "ki", "Shopware", "RAG")):
         self.writer = writer or VariantWriter()
         self.hashtags = FakeModel(responses=[""], structured={HashtagList: HashtagList(tags=list(hashtags))}, calls=[])
         self.roles = {
@@ -165,6 +166,7 @@ def sources():
     with respx.mock:
         respx.get(FEED_URL).mock(return_value=httpx.Response(200, content=RSS.encode()))
         respx.get(ALGOLIA_URL).mock(return_value=httpx.Response(200, json=HN))
+        respx.get(ALGOLIA_BY_DATE_URL).mock(return_value=httpx.Response(200, json={"hits": []}))
         respx.get(url__regex=r"https://(www\.)?example\.com/model.*").mock(
             return_value=httpx.Response(200, text=ARTICLE_HTML)
         )

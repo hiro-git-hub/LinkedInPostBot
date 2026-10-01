@@ -4,7 +4,8 @@ from typing import Annotated, Literal, TypedDict
 
 from pydantic import BaseModel, Field
 
-Category = Literal["ai_software_dev", "ai_ecommerce", "trend", "politics", "science", "off_topic"]
+# Schlüssel passen zu topic_weights in config.yaml.
+Category = Literal["ki_entwicklung", "shopware_ecommerce", "tech_allgemein", "politik", "wissenschaft", "off_topic"]
 
 
 class NewsItem(BaseModel):
@@ -29,9 +30,10 @@ class ScoreBatch(BaseModel):
 
 class ScoredItem(BaseModel):
     item: NewsItem
-    relevance: int
+    relevance: int  # Rohwert des Scorers
     category: Category
     reason: str
+    weighted: float = 0.0  # relevance × topic_weights[category].weight – nur fürs Ranking
 
 
 class TopicChoice(BaseModel):
@@ -57,7 +59,7 @@ class Critique(BaseModel):
 
 
 class HashtagList(BaseModel):
-    tags: list[str] = Field(description="3-6 Hashtags ohne #-Zeichen, CamelCase, z.B. KIimHandel")
+    tags: list[str] = Field(description="Hashtags ohne #-Zeichen, CamelCase, z.B. KIimHandel")
 
 
 class ImagePrompt(BaseModel):

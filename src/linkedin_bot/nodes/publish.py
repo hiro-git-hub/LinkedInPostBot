@@ -44,7 +44,7 @@ def make_publisher(cfg: AppConfig, repo: Repository, client: LinkedInClient | No
 
         result = {"status": "published", "post_urn": urn, "publish_error": None,
                   "source_commented": False, "comment_error": None}
-        if cfg.linkedin.comment_source:
+        if cfg.writing.source_in_first_comment:
             try:
                 linkedin.comment(auth, urn, f"Quelle: {normalize_url(state['selected'].item.url)}")  # ohne utm_-Tracking
                 result["source_commented"] = True

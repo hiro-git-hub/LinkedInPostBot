@@ -1,4 +1,8 @@
-# Wen willst du mit deinen Posts erreichen? Fließt in Scorer und Writer ein.
+# ──────────────────────────────────────────────────────────────────────────────
+# LinkedIn-Bot – Konfiguration
+# Rolle und Humor des Autors stehen in prompts/author.md, der Stil in prompts/style_guide.md.
+# ──────────────────────────────────────────────────────────────────────────────
+
 audience: >
   Entwickler:innen, Tech-Leads, Shop-Betreiber:innen und Entscheider:innen im DACH-Raum, die sich für
   Shopware, E-Commerce und KI in der Praxis interessieren – und für die gesellschaftlichen und politischen
@@ -7,30 +11,103 @@ audience: >
 # Themenrahmen für den Scorer: nur was hier reinpasst, wird hoch bewertet.
 topics: |
   - KI in der Softwareentwicklung (Coding-Agents, KI-gestützte Workflows, Dev-Tools, RAG-Architekturen)
-  - E-Commerce und Shopware (Shops, Suche, Personalisierung, KI-Shopping-Agents, Plattform-Entwicklungen)
+  - E-Commerce und Shopware (Shops, Suche, Personalisierung, KI-Shopping-Agents, Plattform-Entwicklungen,
+    Releases, Deprecations und Breaking Changes mit Praxisfolgen für Plugin-Entwickler:innen)
   - Übergreifende Tech-Entwicklungen mit Praxisfolgen (neue Modelle, Marktverschiebungen, Nutzerverhalten)
   - Politik: Digital-, Wirtschafts- und Gesellschaftspolitik, Regulierung (z.B. AI Act, Datenschutz, Verwaltungsdigitalisierung)
     und politische Entwicklungen, zu denen sich eine pointierte eigene Einordnung lohnt
   - Wissenschaft: neue Erkenntnisse und Studien, die überraschen, Alltag oder Technik betreffen oder
     gängige Annahmen widerlegen
 
+# Gewichtung und Quoten, damit das Profil fachlich scharf bleibt.
+# Die Gewichte bestimmen nur die Rangfolge (Rohwert × weight). Die Mindestschwelle (scoring.min_score) gilt für
+# den Rohwert – sonst könnte Wissenschaft (10 × 0.6 = 6) nie durchkommen.
+# max_share: Anteil an den letzten quota_window_posts veröffentlichten Posts, ab dem die Kategorie pausiert.
+topic_weights:
+  ki_entwicklung: {weight: 1.0}
+  shopware_ecommerce: {weight: 1.2}           # Kernthema leicht bevorzugen
+  tech_allgemein: {weight: 0.8}
+  politik: {weight: 0.7, max_share: 0.2}      # höchstens jeder 5. Post
+  wissenschaft: {weight: 0.6, max_share: 0.15}
+quota_window_posts: 10
+
+scoring:
+  scale: 10
+  min_score: 7                                # Rohwert – darunter landet nichts beim Selector
+  max_candidates: 8                           # so viele gehen an den Selector
+
 language: de
 
 # Modelle pro Rolle – Format "provider:model" (siehe langchain init_chat_model).
-# Weitere Keys (z.B. reasoning_effort, temperature) werden direkt ans Modell durchgereicht.
-# Hinweis: GPT-5-Reasoning-Modelle akzeptieren kein temperature – daher hier weggelassen.
+# Weitere Keys (z.B. reasoning_effort, max_tokens) werden direkt ans Modell durchgereicht.
+# GPT-5-Reasoning-Modelle akzeptieren kein temperature – daher weggelassen.
 models:
-  scorer: {model: "openai:gpt-5-mini", reasoning_effort: low}
-  selector: {model: "openai:gpt-5-mini", reasoning_effort: low}
-  researcher: {model: "openai:gpt-5-mini", reasoning_effort: low}
-  writer: {model: "openai:gpt-5", reasoning_effort: medium}
-  critic: {model: "openai:gpt-5", reasoning_effort: low}
-  hashtags: {model: "openai:gpt-5-mini", reasoning_effort: low}
-  image_prompt: {model: "openai:gpt-5-mini", reasoning_effort: low}
+  scorer:       {model: "openai:gpt-5.4-mini", reasoning_effort: low}
+  selector:     {model: "openai:gpt-5.4-mini", reasoning_effort: low}
+  researcher:   {model: "openai:gpt-5.4-mini", reasoning_effort: low}
+  writer:       {model: "openai:gpt-5.5", reasoning_effort: medium}
+  # Critic idealerweise von einem anderen Anbieter (weniger Selbstbestätigung). Sobald ANTHROPIC_API_KEY in
+  # Coolify gesetzt ist: `uv add langchain-anthropic` und die nächste Zeile aktivieren.
+  # critic:     {model: "anthropic:claude-sonnet-5", max_tokens: 2000}
+  critic:       {model: "openai:gpt-5.5", reasoning_effort: low}
+  hashtags:     {model: "openai:gpt-5.4-mini", reasoning_effort: low}
+  image_prompt: {model: "openai:gpt-5.4-mini", reasoning_effort: low}
+
+# Fallback, falls ein Modell abgekündigt, überlastet oder rate-limited ist.
+model_fallbacks:
+  writer: "openai:gpt-5.4-mini"
+  critic: "openai:gpt-5.4-mini"
+  default: "openai:gpt-5.4-mini"
+
+# Kostenbremse: Ein Lauf (bzw. jede Aktion wie "Überarbeiten") bricht ab, sobald die LLM-Kosten das Limit
+# übersteigen – der Bot meldet das in Telegram. Websuche (Tavily) ist nicht eingerechnet.
+budget:
+  max_usd_per_run: 1.50
+  max_writer_iterations: 3                    # Writer↔Critic-Runden je Version
+
+# USD pro 1 Mio. Tokens (Stand 10/2026, developers.openai.com/api/docs/pricing) – für die Kostenbremse.
+pricing:
+  gpt-5.5:      {input: 5.00, cached_input: 0.50, output: 30.00}
+  gpt-5.4-mini: {input: 0.75, cached_input: 0.075, output: 4.50}
+  gpt-image-2:  {input: 5.00, output: 30.00}
+
+# Formregeln für Writer und Critic. Der Critic prüft genau gegen diese Liste.
+writing:
+  length_chars: {min: 900, max: 1800}
+  hook_max_lines: 1                           # Hook = Überschriftszeile vor der ersten Leerzeile
+  hook_max_chars: 140                         # muss vor "…mehr anzeigen" passen
+  links_in_post: false                        # Post muss ohne Quelle funktionieren
+  source_in_first_comment: true               # Quelle automatisch als ersten Kommentar posten
+  end_with_question: true                     # konkrete, beantwortbare Frage – kein "Was meint ihr?"
+  max_hashtags: 3
+  emojis: none                                # none | sparse
+  perspective: >
+    Ich-Perspektive eines Senior-Entwicklers mit eigener, begründeter Meinung.
+    Konkrete Erfahrung oder Code-Beispiel schlägt Zusammenfassung der Quelle.
+  # Eigene, gut gelaufene Posts als Few-Shot-Beispiele (je eine .md-Datei).
+  voice_examples_dir: ./voice_examples
+  # "X"/"Y" stehen für beliebige Wörter – z.B. trifft "Das ist kein X – das ist Y" auch "Das ist kein Bug – das ist ein Feature".
+  banned_phrases:
+    - "In der heutigen schnelllebigen Welt"
+    - "Lass uns eintauchen"
+    - "Game-Changer"
+    - "revolutionär"
+    - "Spannende Zeiten"
+    - "Was denkt ihr?"
+    - "Hier ist der Grund"
+    - "Das ist kein X – das ist Y"
+    - "Fazit:"
+    - "Aber kurz von vorn"
+    - "Stell dir vor"
+  avoid_patterns:
+    - Dreier-Aufzählungen am Stück
+    - Gedankenstrich-Kaskaden
+    - Einzeilen-Absätze als Dauerformat
+    - Engagement-Bait ("Kommentiere JA, wenn …")
 
 # Bilder auf Knopfdruck (🖼️ in Telegram). Querformat passt am besten in den LinkedIn-Feed.
 images:
-  model: gpt-image-1
+  model: gpt-image-2
   size: 1536x1024
   quality: medium          # low | medium | high – beeinflusst die Kosten deutlich
   style: >
@@ -40,9 +117,19 @@ images:
     kein Neon-Sci-Fi-Look, keine leuchtenden Gehirne oder Roboterhände. Menschen höchstens angeschnitten oder
     von hinten. Keine Schrift, keine Bildschirme mit lesbarem Text.
 
+# Karussell (PDF-Dokumentpost) auf Knopfdruck (📑 in Telegram).
+# Eignet sich für Code-Vergleiche, Upgrade-Checklisten, Architektur-Schritte.
+carousel:
+  enabled: true
+  model: {model: "openai:gpt-5.4-mini", reasoning_effort: low}   # strukturiert Slides aus dem Post
+  slides: {min: 5, max: 8}
+  format: 1080x1350                         # Hochformat 4:5
+  code_highlighting: true
+  theme: {font: "Inter", mono_font: "JetBrains Mono", background: "#FAFAF7", accent: "#1F6FEB"}
+
 sources:
-  # Anthropic & LangChain haben keinen funktionierenden Feed – werden über die Web-Recherche abgedeckt.
   rss:
+    # KI & Dev
     - https://openai.com/news/rss.xml
     - https://blog.google/technology/ai/rss/
     - https://huggingface.co/blog/feed.xml
@@ -50,24 +137,42 @@ sources:
     - https://simonwillison.net/atom/everything/
     - https://www.heise.de/developer/rss/news-atom.xml
     - https://t3n.de/rss.xml
-    # Politik
+    # Anthropic & LangChain über GitHub-Releases (stabil, strukturiert)
+    - https://github.com/anthropics/claude-code/releases.atom
+    - https://github.com/langchain-ai/langgraph/releases.atom   # langchain selbst released sehr oft → zu viel Rauschen
+    # Shopware
+    - https://www.shopware.com/api/rss/changelog-sw6?locale=en
+    # - https://github.com/shopware/shopware/releases.atom      # Alternative, inhaltlich weitgehend gleich
+    # Politik (fokussiert statt allgemeiner Nachrichtenfeeds)
     - https://netzpolitik.org/feed/
-    - https://www.tagesschau.de/inland/index~rss2.xml
-    - https://newsfeed.zeit.de/politik/index
+    - https://artificialintelligenceact.substack.com/feed
+    # - https://www.tagesschau.de/inland/index~rss2.xml         # zu breit, viel Scorer-Rauschen
+    # - https://newsfeed.zeit.de/politik/index                  # zu breit
     # Wissenschaft
     - https://www.spektrum.de/alias/rss/spektrum-de-rss-feed/996406
     - https://www.tagesschau.de/wissen/index~rss2.xml
+
   hackernews:
     min_points: 150
     lookback_hours: 108   # deckt die längste Lücke zwischen zwei geplanten Läufen ab (Mi -> So)
-    max_items: 20         # nur die meistdiskutierten Stories
+    max_items: 20
+    # Nach Punkten pro Zeit ranken (score = points / (age_hours + 2) ** gravity), sonst gewinnen immer die ältesten Stories.
+    ranking: {method: gravity, gravity: 1.8}
+    # Nischen-Abfrage mit niedrigerer Schwelle – Stichwort muss als ganzes Wort im Titel vorkommen.
+    keyword_search:
+      enabled: true
+      min_points: 30
+      keywords: [shopware, symfony, php, "e-commerce", "coding agent", "claude code", rag]
+
+# Dedupe über Läufe hinweg (normalisierte URLs in Postgres) und ähnliche Titel innerhalb eines Laufs.
+dedupe:
+  ttl_days: 30                              # danach darf eine URL wieder auftauchen
+  similar_title_threshold: 0.85            # gleiche Story aus mehreren Quellen zusammenführen
 
 limits:
-  max_age_hours: 108    # ältere RSS-Einträge werden verworfen – passend zum Abstand der Läufe
+  max_age_hours: 108      # ältere RSS-Einträge werden verworfen – passend zum Abstand der Läufe
   max_items_to_score: 100
   max_items_per_feed: 12  # je Feed nur die neuesten – sonst verdrängen Nachrichten-Feeds die Fachquellen
-  min_relevance: 6      # darunter wird kein Post geschrieben
-  shortlist_size: 5     # so viele Top-Themen bekommt der Selector zur Auswahl
 
 # Geplante Läufe im `linkedin-bot serve`-Modus (Tage: mon, tue, wed, thu, fri, sat, sun)
 schedule:
@@ -77,30 +182,11 @@ schedule:
     - {day: sun, time: "18:00"}
 
 linkedin:
-  # true = freigegebene Posts werden nur archiviert, nicht veröffentlicht. Erst nach dem ersten Test auf false setzen.
+  # true = freigegebene Posts werden nur archiviert, nicht veröffentlicht.
   dry_run: false
   api_version: "202609"   # LinkedIn-Version: YYYYMM, jede Version wird ca. 1 Jahr unterstützt
   visibility: PUBLIC      # oder CONNECTIONS
   remind_days_before_expiry: 7
-  comment_source: true    # Quell-Link automatisch als ersten Kommentar posten ("Link in den Kommentaren")
 
 research:
-  max_tool_calls: 5     # Web-Suchen + Seitenabrufe pro Recherche
-
-writing:
-  min_chars: 900
-  max_chars: 1800
-  max_revisions: 2      # so oft darf der Critic den Entwurf zurückschicken
-  hook_max_lines: 2     # Hook = Text vor der ersten Leerzeile – mobil zeigt LinkedIn ~2 Zeilen vor "…mehr"
-  hook_max_chars: 150
-  # Abgenutzte Formulierungen – der Critic lässt keinen Entwurf durch, der eine davon enthält.
-  banned_phrases:
-    - Aber kurz von vorn
-    - Lass uns eintauchen
-    - Game-Changer
-    - Es bleibt spannend
-    - In diesem Sinne
-    - Hier ist der Punkt
-    - Stell dir vor
-    - Hast du dich schon mal gefragt
-    - Heute möchte ich
+  max_tool_calls: 5       # Web-Suchen + Seitenabrufe pro Recherche

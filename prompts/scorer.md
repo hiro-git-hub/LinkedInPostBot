@@ -7,14 +7,14 @@ Themenrahmen (nur diese Themen kommen in Frage):
 {topics}
 
 Kategorien:
-- ai_software_dev: KI verändert, wie Software gebaut wird.
-- ai_ecommerce: KI verändert Shops, Handel oder Kaufverhalten.
-- trend: übergreifende Tech-Entwicklung an der Schnittstelle KI / Software / Handel.
-- politics: politische Entwicklung laut Themenrahmen.
-- science: wissenschaftliche Erkenntnis laut Themenrahmen.
+- ki_entwicklung: KI verändert, wie Software gebaut wird (Coding-Agents, Dev-Tools, RAG, Modelle für Entwickler:innen).
+- shopware_ecommerce: Shopware, Shops, Handel, Kaufverhalten – auch Releases, Deprecations, Breaking Changes.
+- tech_allgemein: übergreifende Tech-Entwicklung mit Praxisfolgen.
+- politik: politische Entwicklung laut Themenrahmen.
+- wissenschaft: wissenschaftliche Erkenntnis laut Themenrahmen.
 - off_topic: alles andere.
 
-Relevanz 0-10:
+Relevanz 0-{scale}:
 - 9-10: Konkrete, neue Entwicklung im Themenrahmen mit klarer Folge für die Praxis der Zielgruppe
   (z.B. neues Coding-Agent-Feature eines großen Anbieters, KI-Shopping-Funktion bei einer großen Plattform, belastbare Studie mit Zahlen).
 - 6-8: Im Themenrahmen und einordnungswürdig, aber weniger konkret oder weniger folgenreich.

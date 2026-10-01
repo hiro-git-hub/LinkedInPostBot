@@ -19,6 +19,7 @@ from linkedin_bot.config import AppConfig, load_config
 from linkedin_bot.db import InMemoryRepository, PostgresRepository, Repository
 from linkedin_bot.graph import build_graph
 from linkedin_bot import state
+from linkedin_bot.budget import CostTracker
 from linkedin_bot.integrations.linkedin import post_url
 from linkedin_bot.nodes.approval import VARIANT_LABELS, post_text
 from linkedin_bot.nodes.hashtags import hashtag_line
@@ -39,6 +40,7 @@ class Step:
     thread_id: str
     pending: dict | None  # Interrupt-Payload aus approval_node
     state: dict
+    cost_usd: float = 0.0  # LLM-Kosten dieses Abschnitts (Lauf oder einzelne Aktion)
 
 
 @dataclass
@@ -83,18 +85,22 @@ def new_thread_id() -> str:
     return f"{date.today():%Y-%m-%d}-{uuid.uuid4().hex[:6]}"
 
 
-def _run(graph: CompiledStateGraph, thread_id: str, payload) -> Step:
-    result = graph.invoke(payload, {"configurable": {"thread_id": thread_id}})
+def _run(graph: CompiledStateGraph, thread_id: str, payload, tracker: CostTracker | None) -> Step:
+    config = {"configurable": {"thread_id": thread_id}}
+    if tracker:
+        config["callbacks"] = [tracker]  # gilt für alle Modelle im Graph, auch die parallelen Varianten
+    result = graph.invoke(payload, config)
     interrupts = result.get("__interrupt__")
-    return Step(thread_id=thread_id, pending=interrupts[0].value if interrupts else None, state=result)
+    return Step(thread_id=thread_id, pending=interrupts[0].value if interrupts else None, state=result,
+                cost_usd=tracker.usd if tracker else 0.0)
 
 
-def start_run(graph: CompiledStateGraph) -> Step:
-    return _run(graph, new_thread_id(), {})
+def start_run(graph: CompiledStateGraph, tracker: CostTracker | None = None) -> Step:
+    return _run(graph, new_thread_id(), {}, tracker)
 
 
-def resume(graph: CompiledStateGraph, thread_id: str, decision: Decision) -> Step:
-    return _run(graph, thread_id, Command(resume=decision))
+def resume(graph: CompiledStateGraph, thread_id: str, decision: Decision, tracker: CostTracker | None = None) -> Step:
+    return _run(graph, thread_id, Command(resume=decision), tracker)
 
 
 def is_awaiting_approval(graph: CompiledStateGraph, thread_id: str) -> bool:

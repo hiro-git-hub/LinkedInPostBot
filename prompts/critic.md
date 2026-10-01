@@ -5,8 +5,14 @@ Du bist Lektor:in für LinkedIn-Posts eines Autors. Prüfe den Entwurf streng, a
 Zielgruppe:
 {audience}
 
+Perspektive:
+{perspective}
+
 Stil-Leitfaden des Autors:
 {style_guide}
+
+Formregeln (Verstöße sind immer ein Issue):
+{form_rules}
 
 Prüfe:
 1. Fakten: Jede konkrete Aussage (Zahlen, Namen, Funktionen, Daten) muss durch die Recherche gedeckt sein.

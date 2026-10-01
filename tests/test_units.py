@@ -8,6 +8,7 @@ import respx
 from linkedin_bot.integrations.linkedin import COMMENTS_URL, IMAGES_URL, POSTS_URL, TOKEN_URL, USERINFO_URL, LinkedInAuth, LinkedInClient, LinkedInError, escape_little
 from linkedin_bot.nodes.dedup import dedupe, normalize_url
 from linkedin_bot.nodes.rules import rule_issues
+from linkedin_bot.db import InMemoryRepository
 from linkedin_bot.state import NewsItem
 
 from conftest import draft, valid_auth
@@ -24,7 +25,7 @@ def test_dedupe_keeps_item_with_more_points():
 
 def test_rule_issues(cfg):
     assert rule_issues(draft(1), cfg) == []
-    too_long = "x" * (cfg.writing.max_chars + 1)
+    too_long = "x" * (cfg.writing.length_chars.max + 1)
     assert any(i.startswith("Zu lang") for i in rule_issues(too_long, cfg))
     checklist = draft(1) + "\n- a\n- b\n• c\n1. d"
     assert any("Aufzählungszeilen" in i for i in rule_issues(checklist, cfg))
@@ -212,3 +213,123 @@ def test_hook_rules(cfg):
     assert any("Hook zu lang (1 Zeilen, 200" in i for i in rule_issues("x" * 200 + body, cfg))
     # Ohne Leerzeile ist der ganze Text "Hook" -> fällt auf
     assert any("Hook zu lang" in i for i in rule_issues("Ein Satz mit Substanz. " * 45, cfg))
+
+
+# --- Formregeln aus der Config ----------------------------------------------------------------------
+
+def test_form_rules_emojis_links_question_and_patterns(cfg):
+    from linkedin_bot.nodes.rules import form_rules, phrase_pattern
+
+    ok = draft(1)
+    assert rule_issues(ok, cfg) == []
+    assert any("Emojis" in i for i in rule_issues(ok.replace("Ein Satz", "🚀 Ein Satz", 1), cfg))
+    assert any("Links" in i for i in rule_issues(ok.replace("Ein Satz", "Siehe https://x.de. Ein Satz", 1), cfg))
+    assert any("Frage" in i for i in rule_issues(ok.rstrip("?") + ".", cfg))
+    assert phrase_pattern("Das ist kein X – das ist Y").search("Das ist kein Bug, das ist ein Feature")
+    rules = form_rules(cfg)
+    assert "Keine Emojis." in rules and "140 Zeichen" in rules and "Gedankenstrich-Kaskaden" in rules
+
+
+# --- Gewichtung und Quoten --------------------------------------------------------------------------
+
+def test_blocked_categories_respect_max_share(cfg):
+    from linkedin_bot.nodes.select import blocked_categories
+
+    recent = ["politik", "politik", "ki_entwicklung", "wissenschaft"]  # 2 von 10 = 20 % Politik
+    assert blocked_categories(cfg, recent) == {"politik"}
+    assert blocked_categories(cfg, ["ki_entwicklung"] * 10) == set()
+
+
+def test_selector_uses_raw_threshold_weights_and_quota(cfg):
+    from linkedin_bot.nodes.select import make_selector
+    from linkedin_bot.state import ScoredItem, TopicChoice
+    from conftest import FakeModel
+
+    def scored(title, relevance, category):
+        weight = cfg.topic_weights[category].weight
+        return ScoredItem(item=NewsItem(source="s", title=title, url=f"https://x.de/{title}"),
+                          relevance=relevance, category=category, reason="r", weighted=relevance * weight)
+
+    repo = InMemoryRepository()
+    for _ in range(2):  # Politik-Quote ausgeschöpft
+        repo.save_post("t", NewsItem(source="s", title="p", url="https://p.de"), "x", "published", category="politik")
+    selector = FakeModel(responses=[""], structured={TopicChoice: TopicChoice(index=0, angle="a")}, calls=[])
+    state = {"scored": [
+        scored("wissen", 10, "wissenschaft"),     # 6.0 gewichtet – Rohwert 10 >= 7, kommt durch
+        scored("shop", 8, "shopware_ecommerce"),  # 9.6 gewichtet -> Platz 1
+        scored("ki", 9, "ki_entwicklung"),        # 9.0
+        scored("politik", 10, "politik"),         # Quote ausgeschöpft
+        scored("schwach", 6, "ki_entwicklung"),   # unter min_score
+    ]}
+    result = make_selector(cfg, selector, repo)(state)
+    shortlist = selector.calls[-1][-1].content
+    assert result["selected"].item.title == "shop"
+    assert "wissen" in shortlist and "politik" not in shortlist and "schwach" not in shortlist
+    assert shortlist.index("shop") < shortlist.index("ki") < shortlist.index("wissen")
+
+
+# --- Kostenbremse und Fallback ----------------------------------------------------------------------
+
+def _llm_result(model_name: str, input_tokens: int, output_tokens: int):
+    from langchain_core.messages import AIMessage
+    from langchain_core.outputs import ChatGeneration, LLMResult
+
+    message = AIMessage("x", response_metadata={"model_name": model_name},
+                        usage_metadata={"input_tokens": input_tokens, "output_tokens": output_tokens, "total_tokens": 0})
+    return LLMResult(generations=[[ChatGeneration(message=message)]])
+
+
+def test_cost_tracker_prices_by_model_prefix_and_stops(cfg):
+    from linkedin_bot.budget import BudgetExceeded, CostTracker
+
+    tracker = CostTracker(cfg)
+    tracker.on_llm_end(_llm_result("gpt-5.5-2026-04-23", 10_000, 2_000))  # 0.05 + 0.06
+    assert tracker.usd == pytest.approx(0.11)
+    with pytest.raises(BudgetExceeded):
+        tracker.on_llm_end(_llm_result("gpt-5.5", 0, 50_000))  # +1.50 -> über dem Limit
+
+
+def test_fallback_on_api_error_but_not_on_budget(cfg):
+    import openai
+    from langchain_core.language_models.fake_chat_models import FakeListChatModel
+
+    from linkedin_bot.budget import BudgetExceeded
+    from linkedin_bot.models import ModelWithFallback
+
+    class Failing(FakeListChatModel):
+        error: object = None
+
+        def _call(self, *args, **kwargs):
+            raise self.error
+
+    api_error = openai.APIConnectionError(request=openai._base_client.httpx2.Request("POST", "https://api.openai.com"))
+    model = ModelWithFallback(Failing(responses=[""], error=api_error), FakeListChatModel(responses=["vom Fallback"]))
+    assert model.invoke("hi").content == "vom Fallback"
+
+    model = ModelWithFallback(Failing(responses=[""], error=BudgetExceeded(2.0, 1.5)), FakeListChatModel(responses=["nein"]))
+    with pytest.raises(BudgetExceeded):
+        model.invoke("hi")
+
+
+def test_get_model_adds_fallback_from_config(cfg, monkeypatch):
+    from linkedin_bot.models import ModelWithFallback, get_model
+
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    writer = get_model(cfg, "writer")
+    assert isinstance(writer, ModelWithFallback)
+    assert writer.primary.model_name == "gpt-5.5" and writer.fallback.model_name == "gpt-5.4-mini"
+    assert not isinstance(get_model(cfg, "scorer"), ModelWithFallback)  # Fallback == Primärmodell
+
+
+# --- Hacker News ------------------------------------------------------------------------------------
+
+def test_hn_gravity_prefers_fresh_stories_and_exact_keywords():
+    from linkedin_bot.collectors.hackernews import gravity_score, title_matches
+
+    now = datetime.now(UTC)
+    old = NewsItem(source="hn", title="old", url="https://a", points=1000, published=now - timedelta(hours=100))
+    fresh = NewsItem(source="hn", title="fresh", url="https://b", points=200, published=now - timedelta(hours=3))
+    assert gravity_score(fresh, 1.8, now.timestamp()) > gravity_score(old, 1.8, now.timestamp())
+    assert title_matches("Building RAG on Shopware", "rag")
+    assert not title_matches("Distributed storage engines", "rag")
+    assert title_matches("Claude Code ships agents", "claude code")

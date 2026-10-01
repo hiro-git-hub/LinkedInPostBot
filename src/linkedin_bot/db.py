@@ -29,6 +29,7 @@ CREATE TABLE IF NOT EXISTS posts (
     "ALTER TABLE posts ADD COLUMN IF NOT EXISTS error TEXT",
     "ALTER TABLE posts ADD COLUMN IF NOT EXISTS variant TEXT",
     "ALTER TABLE posts ADD COLUMN IF NOT EXISTS has_image BOOLEAN NOT NULL DEFAULT false",
+    "ALTER TABLE posts ADD COLUMN IF NOT EXISTS category TEXT",
     # Aktuelles Bild je Lauf – Bytes gehören nicht in den Checkpoint.
     """
 CREATE TABLE IF NOT EXISTS images (
@@ -54,12 +55,13 @@ POSTED_STATUSES = ("approved", "published")
 
 
 class Repository(Protocol):
-    def unseen_keys(self, keys: list[str]) -> set[str]: ...
+    def unseen_keys(self, keys: list[str], ttl_days: int | None = None) -> set[str]: ...
     def mark_seen(self, items: dict[str, NewsItem]) -> None: ...
     def recent_topics(self, days: int) -> list[str]: ...
+    def recent_categories(self, limit: int) -> list[str]: ...
     def save_post(self, thread_id: str, item: NewsItem, text: str, status: str,
                   post_urn: str | None = None, error: str | None = None,
-                  variant: str | None = None, has_image: bool = False) -> None: ...
+                  variant: str | None = None, has_image: bool = False, category: str | None = None) -> None: ...
     def save_image(self, thread_id: str, data: bytes, prompt: str) -> None: ...
     def get_image(self, thread_id: str) -> bytes | None: ...
     def get_linkedin_auth(self) -> LinkedInAuth | None: ...
@@ -76,15 +78,20 @@ class PostgresRepository:
             for statement in SCHEMA:
                 conn.execute(statement)
 
-    def unseen_keys(self, keys: list[str]) -> set[str]:
+    def unseen_keys(self, keys: list[str], ttl_days: int | None = None) -> set[str]:
+        # Nach ttl_days gilt eine URL wieder als neu (z.B. Dauerbrenner mit neuem Stand).
+        ttl = timedelta(days=ttl_days) if ttl_days else timedelta(days=36500)
         with self.pool.connection() as conn:
-            rows = conn.execute("SELECT url_key FROM seen_items WHERE url_key = ANY(%s)", (keys,)).fetchall()
+            rows = conn.execute(
+                "SELECT url_key FROM seen_items WHERE url_key = ANY(%s) AND first_seen > now() - %s", (keys, ttl),
+            ).fetchall()
         return set(keys) - {row["url_key"] for row in rows}
 
     def mark_seen(self, items: dict[str, NewsItem]) -> None:
         with self.pool.connection() as conn:
             conn.cursor().executemany(
-                "INSERT INTO seen_items (url_key, title, source) VALUES (%s, %s, %s) ON CONFLICT DO NOTHING",
+                "INSERT INTO seen_items (url_key, title, source) VALUES (%s, %s, %s) "
+                "ON CONFLICT (url_key) DO UPDATE SET first_seen = now()",
                 [(key, item.title, item.source) for key, item in items.items()],
             )
 
@@ -99,13 +106,22 @@ class PostgresRepository:
 
     def save_post(self, thread_id: str, item: NewsItem, text: str, status: str,
                   post_urn: str | None = None, error: str | None = None,
-                  variant: str | None = None, has_image: bool = False) -> None:
+                  variant: str | None = None, has_image: bool = False, category: str | None = None) -> None:
         with self.pool.connection() as conn:
             conn.execute(
-                "INSERT INTO posts (thread_id, topic_title, topic_url, text, status, post_urn, error, variant, has_image) "
-                "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
-                (thread_id, item.title, item.url, text, status, post_urn, error, variant, has_image),
+                "INSERT INTO posts (thread_id, topic_title, topic_url, text, status, post_urn, error, variant, "
+                "has_image, category) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                (thread_id, item.title, item.url, text, status, post_urn, error, variant, has_image, category),
             )
+
+    def recent_categories(self, limit: int) -> list[str]:
+        with self.pool.connection() as conn:
+            rows = conn.execute(
+                "SELECT category FROM posts WHERE status = ANY(%s) AND category IS NOT NULL "
+                "ORDER BY created_at DESC LIMIT %s",
+                (list(POSTED_STATUSES), limit),
+            ).fetchall()
+        return [row["category"] for row in rows]
 
     def save_image(self, thread_id: str, data: bytes, prompt: str) -> None:
         with self.pool.connection() as conn:
@@ -149,7 +165,7 @@ class InMemoryRepository:
         self.linkedin_auth: LinkedInAuth | None = None
         self.images: dict[str, bytes] = {}
 
-    def unseen_keys(self, keys: list[str]) -> set[str]:
+    def unseen_keys(self, keys: list[str], ttl_days: int | None = None) -> set[str]:
         return set(keys) - self.seen.keys()
 
     def mark_seen(self, items: dict[str, NewsItem]) -> None:
@@ -161,10 +177,14 @@ class InMemoryRepository:
 
     def save_post(self, thread_id: str, item: NewsItem, text: str, status: str,
                   post_urn: str | None = None, error: str | None = None,
-                  variant: str | None = None, has_image: bool = False) -> None:
+                  variant: str | None = None, has_image: bool = False, category: str | None = None) -> None:
         self.posts.append({"thread_id": thread_id, "item": item, "text": text, "status": status,
                            "post_urn": post_urn, "error": error, "variant": variant, "has_image": has_image,
-                           "created_at": datetime.now(UTC)})
+                           "category": category, "created_at": datetime.now(UTC)})
+
+    def recent_categories(self, limit: int) -> list[str]:
+        posted = [p for p in reversed(self.posts) if p["status"] in POSTED_STATUSES and p["category"]]
+        return [p["category"] for p in posted[:limit]]
 
     def save_image(self, thread_id: str, data: bytes, prompt: str) -> None:
         self.images[thread_id] = data

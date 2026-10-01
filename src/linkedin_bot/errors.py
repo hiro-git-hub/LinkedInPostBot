@@ -3,6 +3,7 @@
 import openai
 import psycopg
 
+from linkedin_bot.budget import BudgetExceeded
 from linkedin_bot.integrations.linkedin import LinkedInError
 
 OPENAI_BILLING_URL = "https://platform.openai.com/settings/organization/billing"
@@ -19,6 +20,9 @@ def _chain(exc: BaseException):
 
 def describe_error(exc: BaseException) -> str:
     for err in _chain(exc):
+        if isinstance(err, BudgetExceeded):
+            return (f"Kostenbremse: abgebrochen nach {err.spent:.2f} $ (Limit {err.limit:.2f} $ pro Lauf). "
+                    "Limit in config.yaml unter budget.max_usd_per_run anpassen.")
         if isinstance(err, openai.AuthenticationError):
             return "OpenAI: API-Key ungültig – OPENAI_API_KEY in Coolify prüfen."
         if isinstance(err, openai.RateLimitError):

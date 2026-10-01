@@ -5,6 +5,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
+from linkedin_bot.budget import CostTracker
 from linkedin_bot.config import load_config
 from linkedin_bot.nodes.image import image_key
 from linkedin_bot.runtime import Step, open_runtime, outcome_message, render_pending, resume, start_run
@@ -45,9 +46,10 @@ def ask_decision() -> Decision:
 
 def run_console(args) -> None:
     """Kompletter Lauf im Terminal – Freigabe per Tastatur statt Telegram."""
-    with open_runtime(load_config(), use_db=not args.no_db) as runtime:
+    cfg = load_config()
+    with open_runtime(cfg, use_db=not args.no_db) as runtime:
         graph = runtime.graph
-        step = start_run(graph)
+        step = start_run(graph, tracker=CostTracker(cfg))
         print_candidates(step, args.top)
         while step.pending:
             print(f"\n{'=' * 70}\n{render_pending(step.pending)}\n{'=' * 70}")
@@ -55,7 +57,7 @@ def run_console(args) -> None:
                 path = Path(tempfile.gettempdir()) / f"linkedin-bot-{step.thread_id}-{variant}.png"
                 path.write_bytes(runtime.repo.get_image(image_key(step.thread_id, variant)))
                 print(f"🖼️ Bild ({variant}) gespeichert: {path}")
-            step = resume(graph, step.thread_id, ask_decision())
+            step = resume(graph, step.thread_id, ask_decision(), tracker=CostTracker(cfg))
         print("\n" + outcome_message(step.state))
 
 

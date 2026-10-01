@@ -45,7 +45,7 @@ def build_graph(
     if research_agent is None:
         research_agent = build_research_agent(cfg, model_factory(cfg, "researcher"))
     if image_generator is None:
-        image_generator = OpenAIImageGenerator(cfg.images.model, cfg.images.size, cfg.images.quality)
+        image_generator = OpenAIImageGenerator(cfg.images.model, cfg.images.size, cfg.images.quality, cfg.pricing)
 
     def fan_out(_: State) -> list[Send]:
         return [Send("collect", SourceTask(source=name)) for name in collectors]
@@ -62,7 +62,7 @@ def build_graph(
 
     graph = StateGraph(State)
     graph.add_node("collect", collect)
-    graph.add_node("dedup", make_dedup(repo))
+    graph.add_node("dedup", make_dedup(repo, cfg.dedupe.ttl_days, cfg.dedupe.similar_title_threshold))
     graph.add_node("scorer", make_scorer(cfg, model_factory(cfg, "scorer"), repo))
     graph.add_node("select", make_selector(cfg, model_factory(cfg, "selector"), repo))
     graph.add_node("research", make_researcher(research_agent))

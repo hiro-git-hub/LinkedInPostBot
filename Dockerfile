@@ -13,6 +13,7 @@ RUN uv sync --frozen --no-dev --no-install-project
 
 COPY src ./src
 COPY prompts ./prompts
+COPY voice_examples ./voice_examples
 COPY config.yaml ./
 RUN uv sync --frozen --no-dev
 

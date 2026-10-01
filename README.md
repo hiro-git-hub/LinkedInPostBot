@@ -57,7 +57,8 @@ Solange ein `[EIGENE ERFAHRUNG: …]`-Platzhalter im Text steht, lässt sich die
 - **`config.yaml`** – Zielgruppe, Themenrahmen, Modelle pro Rolle (`provider:model`, Standard OpenAI GPT-5),
   Quellen, Schwellen, Länge, Zeitplan.
 - **`prompts/style_guide.md`** – Tonalität und Aufbau deiner Posts.
-- **`prompts/examples/*.md`** – eigene Posts als Few-Shot-Beispiele.
+- **`voice_examples/*.md`** – eigene Posts als Few-Shot-Beispiele (Pfad: `writing.voice_examples_dir`).
+- **`prompts/author.md`** – deine Rolle und dein Humor.
 
 ## Struktur
 

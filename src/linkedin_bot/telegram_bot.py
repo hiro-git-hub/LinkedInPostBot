@@ -14,6 +14,7 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.error import NetworkError
 from telegram.ext import Application, CallbackQueryHandler, CommandHandler, ContextTypes, MessageHandler, filters
 
+from linkedin_bot.budget import CostTracker
 from linkedin_bot.config import AppConfig
 from linkedin_bot.errors import describe_error
 from linkedin_bot.healthcheck import HEARTBEAT_INTERVAL_SECONDS, write_heartbeat
@@ -85,7 +86,8 @@ class ApprovalBot:
     async def advance(self, app: Application, fn, *args) -> None:
         async with self.lock:
             try:
-                step: Step = await asyncio.to_thread(fn, self.graph, *args)
+                # Eigene Kostenbremse je Aktion (Lauf, Überarbeiten, Bild …).
+                step: Step = await asyncio.to_thread(fn, self.graph, *args, tracker=CostTracker(self.cfg))
             except Exception as exc:
                 log.exception("Graph-Lauf fehlgeschlagen")
                 await app.bot.send_message(self.chat_id, f"💥 Lauf fehlgeschlagen.\n{describe_error(exc)}")
@@ -95,7 +97,8 @@ class ApprovalBot:
     async def deliver(self, app: Application, step: Step) -> None:
         if step.pending:
             pending = step.pending
-            await app.bot.send_message(self.chat_id, render_header(pending)[:TELEGRAM_LIMIT],
+            header = render_header(pending) + f"\n💰 Kosten dieses Schritts: {step.cost_usd:.2f} $"
+            await app.bot.send_message(self.chat_id, header[:TELEGRAM_LIMIT],
                                        reply_markup=control_keyboard(step.thread_id))
             for variant in VARIANTS:
                 if variant not in pending["drafts"]:

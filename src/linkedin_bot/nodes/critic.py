@@ -2,7 +2,7 @@ from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from linkedin_bot.config import AppConfig
-from linkedin_bot.nodes.rules import rule_issues
+from linkedin_bot.nodes.rules import form_rules, rule_issues
 from linkedin_bot.nodes.writer import format_research
 from linkedin_bot.state import ComposeTask, Critique
 
@@ -16,7 +16,9 @@ def make_critic(cfg: AppConfig, model: BaseChatModel):
     system = (cfg.prompts_dir / "critic.md").read_text().format(
         author=cfg.author,
         audience=cfg.audience,
+        perspective=cfg.writing.perspective,
         style_guide=(cfg.prompts_dir / "style_guide.md").read_text(),
+        form_rules=form_rules(cfg),
     )
     structured = model.with_structured_output(Critique)
 

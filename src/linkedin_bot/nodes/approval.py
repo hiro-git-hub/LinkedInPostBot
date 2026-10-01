@@ -92,6 +92,7 @@ def make_archive(repo: Repository):
             post_urn=state.get("post_urn"), error=state.get("publish_error"),
             variant=variant if approved else None,
             has_image=approved and variant in (state.get("image_prompts") or {}),
+            category=state["selected"].category,
         )
         return {"status": state["status"] if approved else "rejected"}
 

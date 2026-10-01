@@ -19,10 +19,10 @@ def make_compose(cfg: AppConfig, writer_model: BaseChatModel, critic_model: Base
         else:
             text, revisions = write(task), 1
 
-        # revisions zählt alle Entwürfe: 1 Erstentwurf + max_revisions Überarbeitungen durch den Critic.
+        # revisions zählt alle Entwürfe; budget.max_writer_iterations begrenzt die Writer↔Critic-Runden.
         while True:
             critique = review(task, text)
-            if critique.approved or revisions > cfg.writing.max_revisions:
+            if critique.approved or revisions >= cfg.budget.max_writer_iterations:
                 break
             text = write(task, draft=text, critique=critique)
             revisions += 1

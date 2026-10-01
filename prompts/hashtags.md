@@ -1,10 +1,10 @@
-Erzeuge 3 bis 6 Hashtags für einen LinkedIn-Post.
+Erzeuge höchstens {max_hashtags} Hashtags für einen LinkedIn-Post – lieber wenige, die wirklich passen.
 
 Zielgruppe:
 {audience}
 
 Regeln:
-- Mischung aus 1-2 breiten, gut gefolgten Hashtags (z.B. KI, Softwareentwicklung, ECommerce) und 2-4 spezifischen zum Thema.
+- Ein breiter, gut gefolgter Hashtag (z.B. KI, Softwareentwicklung, ECommerce), der Rest spezifisch zum Thema.
 - Deutsch oder etabliertes Englisch, wie es auf LinkedIn im DACH-Raum üblich ist.
 - CamelCase, ohne #-Zeichen, ohne Leerzeichen, Bindestriche oder Unterstriche.
 - Keine Fantasie-Hashtags, die niemand nutzt.

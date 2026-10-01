@@ -31,7 +31,7 @@ def test_run_writes_both_variants_with_hashtags(cfg, sources):
     pending = step.pending
     assert pending["drafts"]["normal"].text == draft(1).strip()
     assert pending["drafts"]["humor"].text == draft(1, "humor").strip()
-    assert pending["hashtags"] == ["KI", "DevTools"]  # bereinigt und dedupliziert
+    assert pending["hashtags"] == ["KI", "DevTools", "Shopware"]  # bereinigt, dedupliziert, max_hashtags
     assert pending["images"] == {}
 
 
@@ -50,11 +50,11 @@ def test_critic_loop_runs_per_variant(cfg, sources):
     assert (drafts["humor"].revisions, drafts["humor"].text) == (1, draft(1, "humor").strip())
 
 
-def test_critic_loop_stops_after_max_revisions(cfg, sources):
+def test_critic_loop_stops_after_max_iterations(cfg, sources):
     step = start_run(make_graph(cfg, Models(TOPIC, reject_if=lambda text: True)))
     for variant in ("normal", "humor"):
         result = step.pending["drafts"][variant]
-        assert result.revisions == cfg.writing.max_revisions + 1
+        assert result.revisions == cfg.budget.max_writer_iterations
         assert not result.critique.approved  # Autor sieht die offenen Punkte
 
 
@@ -87,11 +87,12 @@ def test_approve_humor_archives_humor_text_with_hashtags(cfg, sources):
     assert step.state["status"] == "approved"
     post = repo.posts[0]
     assert post["variant"] == "humor"
-    assert post["text"] == draft(1, "humor").strip() + "\n\n#KI #DevTools"
+    assert post["text"] == draft(1, "humor").strip() + "\n\n#KI #DevTools #Shopware"
 
 
 def test_placeholder_blocks_approval_until_edited(cfg, sources):
-    writer = VariantWriter({"normal": [draft(1) + "\n[EIGENE ERFAHRUNG: Projekt]"], "humor": [draft(1, "humor")]})
+    with_placeholder = draft(1).replace("Wie testet", "[EIGENE ERFAHRUNG: Projekt] Wie testet")
+    writer = VariantWriter({"normal": [with_placeholder], "humor": [draft(1, "humor")]})
     graph = make_graph(cfg, Models(TOPIC, writer=writer))
     step = start_run(graph)
 
@@ -213,7 +214,7 @@ def test_publish_sends_variant_hashtags_and_image(cfg, sources):
 
     assert step.state["status"] == "published"
     assert linkedin.posts == [{
-        "text": draft(1, "humor").strip(), "hashtags": ["KI", "DevTools"],
+        "text": draft(1, "humor").strip(), "hashtags": ["KI", "DevTools", "Shopware"],
         "image": b"PNG:a lighthouse made of circuits", "alt_text": "Leuchtturm aus Platinen",
     }]
     post = repo.posts[0]
@@ -263,9 +264,9 @@ def test_publish_api_error_is_archived(cfg, sources):
 # --- Hashtag-Helfer --------------------------------------------------------------------------------
 
 def test_clean_tags():
-    assert clean_tags(["#KI", "Dev Tools", "ki", "E-Commerce", "Künstliche_Intelligenz", "a", "b", "c", "d"]) == [
-        "KI", "DevTools", "ECommerce", "KünstlicheIntelligenz", "a", "b",
-    ]
+    tags = ["#KI", "Dev Tools", "ki", "E-Commerce", "Künstliche_Intelligenz", "a"]
+    assert clean_tags(tags) == ["KI", "DevTools", "ECommerce", "KünstlicheIntelligenz", "a"]
+    assert clean_tags(tags, limit=3) == ["KI", "DevTools", "ECommerce"]
 
 
 def test_split_hashtags():

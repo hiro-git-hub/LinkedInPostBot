@@ -2,12 +2,12 @@ from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from linkedin_bot.config import AppConfig
-from linkedin_bot.nodes.rules import rule_issues
+from linkedin_bot.nodes.rules import form_rules, rule_issues
 from linkedin_bot.state import ComposeTask, Critique, Research, Variant
 
 
 def load_examples(cfg: AppConfig) -> str:
-    files = sorted(p for p in (cfg.prompts_dir / "examples").glob("*.md") if p.name != "README.md")
+    files = sorted(p for p in cfg.voice_examples_path.glob("*.md") if p.name != "README.md")
     if not files:
         return ""
     posts = "\n\n---\n\n".join(p.read_text().strip() for p in files)
@@ -19,14 +19,12 @@ def build_system_prompt(cfg: AppConfig, variant: Variant = "normal") -> str:
         language=cfg.language,
         author=cfg.author,
         audience=cfg.audience,
+        perspective=cfg.writing.perspective,
         style_guide=(cfg.prompts_dir / "style_guide.md").read_text(),
+        form_rules=form_rules(cfg),
         examples=load_examples(cfg),
-        min_chars=cfg.writing.min_chars,
-        max_chars=cfg.writing.max_chars,
-        hook_max_lines=cfg.writing.hook_max_lines,
-        hook_max_chars=cfg.writing.hook_max_chars,
         # ~7 Zeichen pro deutschem Wort inkl. Leerzeichen; Ziel bewusst unter dem Maximum.
-        target_words=round((cfg.writing.min_chars + cfg.writing.max_chars) / 2 / 7),
+        target_words=round((cfg.writing.length_chars.min + cfg.writing.length_chars.max) / 2 / 7),
     )
     if variant == "humor":
         prompt += "\n\n" + (cfg.prompts_dir / "humor.md").read_text()

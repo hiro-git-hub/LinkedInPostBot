@@ -6,19 +6,18 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from linkedin_bot.config import AppConfig
 from linkedin_bot.state import HashtagList, State
 
-MAX_HASHTAGS = 6
 HASHTAG_LINE = re.compile(r"^(\s*#\w+)+\s*$")
 
 
-def clean_tags(tags: list[str]) -> list[str]:
-    """Nur Buchstaben/Ziffern (LinkedIn-Hashtags sind ein Wort), ohne Duplikate, max. 6."""
+def clean_tags(tags: list[str], limit: int | None = None) -> list[str]:
+    """Nur Buchstaben/Ziffern (LinkedIn-Hashtags sind ein Wort), ohne Duplikate, höchstens `limit`."""
     result, seen = [], set()
     for tag in tags:
         tag = re.sub(r"[^\w]|_", "", tag.lstrip("#"))
         if tag and tag.lower() not in seen:
             seen.add(tag.lower())
             result.append(tag)
-    return result[:MAX_HASHTAGS]
+    return result[:limit] if limit else result
 
 
 def split_hashtags(text: str) -> tuple[str, list[str]]:
@@ -35,7 +34,8 @@ def hashtag_line(tags: list[str]) -> str:
 
 
 def make_hashtagger(cfg: AppConfig, model: BaseChatModel):
-    system = (cfg.prompts_dir / "hashtags.md").read_text().format(audience=cfg.audience)
+    system = (cfg.prompts_dir / "hashtags.md").read_text().format(
+        audience=cfg.audience, max_hashtags=cfg.writing.max_hashtags)
     structured = model.with_structured_output(HashtagList)
 
     def hashtag_node(state: State) -> dict:
@@ -47,6 +47,6 @@ def make_hashtagger(cfg: AppConfig, model: BaseChatModel):
             SystemMessage(system),
             HumanMessage(f"Thema: {item.title}\n\nPost:\n{draft}"),
         ])
-        return {"hashtags": clean_tags(result.tags)}
+        return {"hashtags": clean_tags(result.tags, cfg.writing.max_hashtags)}
 
     return hashtag_node
