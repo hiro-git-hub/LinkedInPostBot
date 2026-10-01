@@ -311,3 +311,19 @@ def test_no_carousel_removes_it(cfg, sources):
     assert set(step.pending["carousels"]) == {"humor"}
     step = resume(graph, step.thread_id, Decision(action="no_carousel", variant="humor"))
     assert step.pending["carousels"] == {}
+
+
+def test_incompatible_old_checkpoint_is_not_resumable(cfg, sources):
+    from linkedin_bot.runtime import is_awaiting_approval, is_compatible
+    from linkedin_bot.state import ScoredItem
+
+    graph = make_graph(cfg, Models(TOPIC))
+    step = start_run(graph)
+    assert is_awaiting_approval(graph, step.thread_id)
+
+    # So sieht ein alter Checkpoint nach dem Laden aus: ohne Validierung rekonstruiert, alte Kategorie.
+    old = ScoredItem.model_construct(item={"title": "x", "url": "https://x", "source": "s"}, relevance=9,
+                                     category="ai_software_dev", reason="r")
+    assert not is_compatible({"selected": old})
+    assert is_compatible({"selected": step.state["selected"]})
+    assert is_compatible({})

@@ -222,7 +222,8 @@ class ApprovalBot:
             return
         action, variant, thread_id = query.data.split("|", 2)
         if not is_awaiting_approval(self.graph, thread_id):
-            await query.answer("Dieser Entwurf ist nicht mehr offen.")
+            await query.answer("Dieser Entwurf ist nicht mehr offen oder stammt aus einer älteren Bot-Version – "
+                               "bitte /run für einen neuen Entwurf.", show_alert=True)
             await query.edit_message_reply_markup(None)
             return
         draft = current_draft(self.graph, thread_id, variant) if variant else ""

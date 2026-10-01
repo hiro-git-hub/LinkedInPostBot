@@ -106,8 +106,22 @@ def resume(graph: CompiledStateGraph, thread_id: str, decision: Decision, tracke
     return _run(graph, thread_id, Command(resume=decision), tracker)
 
 
+def is_compatible(values: dict) -> bool:
+    """Passt ein gespeicherter Lauf noch zum aktuellen Schema? Ältere Checkpoints werden beim Laden ohne
+    Validierung rekonstruiert (z.B. umbenannte Kategorien) – damit weiterzuarbeiten endet in Folgefehlern."""
+    selected = values.get("selected")
+    if selected is None:
+        return True
+    try:
+        state.ScoredItem.model_validate(selected.model_dump(warnings=False) if hasattr(selected, "model_dump") else selected)
+    except Exception:
+        return False
+    return True
+
+
 def is_awaiting_approval(graph: CompiledStateGraph, thread_id: str) -> bool:
-    return "approval" in graph.get_state({"configurable": {"thread_id": thread_id}}).next
+    snapshot = graph.get_state({"configurable": {"thread_id": thread_id}})
+    return "approval" in snapshot.next and is_compatible(snapshot.values)
 
 
 def pending_steps(graph: CompiledStateGraph) -> list[Step]:
@@ -121,7 +135,8 @@ def pending_steps(graph: CompiledStateGraph) -> list[Step]:
             log.warning("Lauf %s übersprungen – Zustand nicht lesbar", thread_id, exc_info=True)
             continue
         # Entwürfe aus älteren Versionen (anderes Payload-Format) nicht mehr zustellen.
-        if "approval" in snapshot.next and snapshot.interrupts and "images" in snapshot.interrupts[0].value:
+        if ("approval" in snapshot.next and snapshot.interrupts and "images" in snapshot.interrupts[0].value
+                and is_compatible(snapshot.values)):
             steps.append(Step(thread_id=thread_id, pending=snapshot.interrupts[0].value, state=snapshot.values))
     return steps
 
