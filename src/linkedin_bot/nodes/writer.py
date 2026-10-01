@@ -23,8 +23,9 @@ def build_system_prompt(cfg: AppConfig, variant: Variant = "normal") -> str:
         style_guide=(cfg.prompts_dir / "style_guide.md").read_text(),
         form_rules=form_rules(cfg),
         examples=load_examples(cfg),
-        # ~7 Zeichen pro deutschem Wort inkl. Leerzeichen; Ziel bewusst unter dem Maximum.
-        target_words=round((cfg.writing.length_chars.min + cfg.writing.length_chars.max) / 2 / 7),
+        # ~7 Zeichen pro deutschem Wort inkl. Leerzeichen. Ziel im unteren Drittel der Spanne – das Modell schreibt
+        # erfahrungsgemäß länger als angegeben.
+        target_words=round((cfg.writing.length_chars.min + (cfg.writing.length_chars.max - cfg.writing.length_chars.min) * 0.35) / 7),
     )
     if variant == "humor":
         prompt += "\n\n" + (cfg.prompts_dir / "humor.md").read_text()

@@ -31,8 +31,12 @@ class ModelWithFallback:
             [self.fallback.with_structured_output(schema, **kwargs)], exceptions_to_handle=FALLBACK_ERRORS)
 
 
-def _init(model_cfg: ModelConfig) -> BaseChatModel:
-    return init_chat_model(model_cfg.model, **(model_cfg.model_extra or {}))
+def _init(model: str, **kwargs) -> BaseChatModel:
+    if model.startswith("openai:"):
+        # Neuere OpenAI-Modelle (z.B. gpt-5.4-mini) erlauben Tool-Aufrufe mit reasoning_effort nur über die
+        # Responses-API – Chat Completions antwortet sonst mit 400.
+        kwargs.setdefault("use_responses_api", True)
+    return init_chat_model(model, **kwargs)
 
 
 def role_config(cfg: AppConfig, role: str) -> ModelConfig:
@@ -43,7 +47,7 @@ def get_model(cfg: AppConfig, role: str) -> BaseChatModel | ModelWithFallback:
     """Modell für eine Rolle (scorer, writer, ...) laut config.yaml, mit Fallback aus model_fallbacks."""
     primary_cfg = role_config(cfg, role)
     fallback = cfg.model_fallbacks.get(role) or cfg.model_fallbacks.get("default")
-    primary = _init(primary_cfg)
+    primary = _init(primary_cfg.model, **(primary_cfg.model_extra or {}))
     if not fallback or fallback == primary_cfg.model:
         return primary
-    return ModelWithFallback(primary, init_chat_model(fallback))
+    return ModelWithFallback(primary, _init(fallback))
