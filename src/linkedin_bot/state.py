@@ -22,6 +22,7 @@ class ItemScore(BaseModel):
     relevance: int = Field(description="Relevanz für die Zielgruppe, 0-10")
     category: Category
     reason: str = Field(description="Ein Satz: warum ist das für die Zielgruppe interessant?")
+    search_term: str = Field(default="", description="1-3 Wörter, wie Menschen in Deutschland bei Google danach suchen würden, z.B. 'Shopware 6.7' oder 'AI Act'")
 
 
 class ScoreBatch(BaseModel):
@@ -33,7 +34,9 @@ class ScoredItem(BaseModel):
     relevance: int  # Rohwert des Scorers
     category: Category
     reason: str
-    weighted: float = 0.0  # relevance × topic_weights[category].weight – nur fürs Ranking
+    weighted: float = 0.0  # relevance × topic_weights[category].weight (× Trends-Bonus) – nur fürs Ranking
+    search_term: str = ""
+    trend_growth: float | None = None  # Google-Trends-Wachstum, None = nicht abgefragt
 
 
 class TopicChoice(BaseModel):
@@ -121,6 +124,7 @@ class ComposeTask(TypedDict, total=False):
     research: Research
     previous: DraftVariant | None  # bei Überarbeitung durch den Autor
     human_feedback: str | None
+    trend_queries: list[str]
 
 
 class SourceTask(TypedDict):
@@ -138,6 +142,8 @@ class State(TypedDict, total=False):
     angle: str
     article: str
     research: Research
+    trends_status: str | None  # None = aus, "ok" oder Grund, warum Google Trends nicht verfügbar war
+    trend_queries: list[str]  # steigende Suchanfragen zum gewählten Thema
     drafts: Annotated[dict[str, DraftVariant], merge_drafts]
     hashtags: list[str]
     # Je Variante ein optionales Bild; die Bytes liegen im Repository (Schlüssel: image_key).

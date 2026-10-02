@@ -53,6 +53,11 @@ def make_writer(cfg: AppConfig, model: BaseChatModel):
             f"Aufhänger: {task.get('angle', '-')}\n\n"
             f"{format_research(task['research'])}"
         )
+        if task.get("trend_queries"):
+            material += (
+                "\n\nGerade stark steigende Google-Suchen in Deutschland rund um das Thema (nur als Inspiration für "
+                "Hook oder Bezug, keine Fakten daraus ableiten): " + "; ".join(task["trend_queries"])
+            )
         if human_feedback:
             material += (
                 f"\n\nDein bisheriger Entwurf:\n{draft}\n\n"

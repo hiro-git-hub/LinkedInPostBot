@@ -160,6 +160,14 @@ def render_header(pending: dict) -> str:
     if pending.get("notice"):
         lines += [f"⚠️ {pending['notice']}", ""]
     lines.append(f"🏷️ {hashtag_line(pending['hashtags']) or '(keine Hashtags)'}")
+    trend = pending.get("trend") or {}
+    if trend.get("status") == "ok" and trend.get("growth") is not None:
+        line = f"📈 Google-Suchinteresse {trend['growth']:+.0%} (7 Tage, DE)"
+        if trend.get("queries"):
+            line += " – steigend: " + ", ".join(trend["queries"][:3])
+        lines.append(line)
+    elif trend.get("status") not in (None, "ok"):
+        lines.append("📈 Google Trends nicht verfügbar – Auswahl ohne Trend-Bonus")
     lines.append("\nUnten stehen beide Versionen – gib die gewünschte frei.")
     return "\n".join(lines)
 

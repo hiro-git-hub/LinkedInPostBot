@@ -45,7 +45,7 @@ uv run pytest                     # Tests (ohne Netzwerk/LLM/DB)
 ```
 
 Im Telegram-Chat: `/run` startet sofort einen Lauf, `/offen` schickt offene Entwürfe erneut, `/login` meldet bei
-LinkedIn an. Jeder Entwurf kommt als **Normal-** und **Humor-Version** mit 3–6 Hashtags:
+LinkedIn an, `/trends <Begriff>` prüft, ob Google Trends vom Server aus erreichbar ist. Jeder Entwurf kommt als **Normal-** und **Humor-Version** mit 3–6 Hashtags:
 - pro Version: **Diese Version freigeben**, **Bearbeiten** (eigenen Text schicken, Hashtags am Ende werden übernommen),
   **Überarbeiten lassen** (Feedback an den Writer)
 - pro Version außerdem: **Bild erzeugen** / **Neues Bild** / **Ohne Bild** und **Karussell erzeugen** (PDF-Dokumentpost

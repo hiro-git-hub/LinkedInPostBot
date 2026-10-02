@@ -364,3 +364,44 @@ def test_render_carousel_produces_one_page_per_slide(cfg):
     pdf = render_carousel(spec, cfg.carousel, cfg.carousel.footer)
     assert pdf.startswith(b"%PDF")
     assert len(re.findall(rb"/Type /Page[^s]", pdf)) == 4
+
+
+# --- Google-Trends-Client ---------------------------------------------------------------------------
+
+def test_growth_of_compares_recent_days_with_before():
+    from linkedin_bot.integrations.trends import growth_of
+
+    assert growth_of([10] * 5 + [20] * 2) == pytest.approx(1.0)
+    assert growth_of([10] * 7) == 0.0
+    assert growth_of([0] * 5 + [5] * 2) == 1.0
+    assert growth_of([1, 2]) == 0.0
+
+
+@respx.mock
+def test_trends_client_parses_google_responses():
+    from linkedin_bot.integrations.trends import BASE, GoogleTrends
+
+    respx.get(f"{BASE}/explore").mock(return_value=httpx.Response(200))
+    respx.get(f"{BASE}/api/explore").mock(return_value=httpx.Response(200, text=")]}'\n" + json.dumps({"widgets": [
+        {"id": "TIMESERIES", "request": {"a": 1}, "token": "t1"},
+        {"id": "RELATED_QUERIES_0", "request": {"b": 2}, "token": "t2"},
+    ]})))
+    respx.get(f"{BASE}/api/widgetdata/multiline").mock(return_value=httpx.Response(200, text=")]}',\n" + json.dumps(
+        {"default": {"timelineData": [{"value": [10, 50]}] * 5 + [{"value": [20, 50]}] * 2}})))
+    respx.get(f"{BASE}/api/widgetdata/relatedsearches").mock(return_value=httpx.Response(200, text=")]}',\n" + json.dumps(
+        {"default": {"rankedList": [{"rankedKeyword": []}, {"rankedKeyword": [{"query": "shopware 6.7 upgrade"}]}]}})))
+
+    client = GoogleTrends(pause_seconds=0)
+    assert client.growth(["Shopware", "KI"]) == {"Shopware": pytest.approx(1.0), "KI": 0.0}
+    assert client.rising_queries("Shopware") == ["shopware 6.7 upgrade"]
+
+
+@respx.mock
+def test_trends_client_gives_up_on_rate_limit():
+    from linkedin_bot.integrations.trends import BASE, GoogleTrends, TrendsUnavailable
+
+    respx.get(f"{BASE}/explore").mock(return_value=httpx.Response(200))
+    route = respx.get(f"{BASE}/api/explore").mock(return_value=httpx.Response(429))
+    with pytest.raises(TrendsUnavailable, match="429"):
+        GoogleTrends(pause_seconds=0, retries=2).growth(["Shopware"])
+    assert route.call_count == 3

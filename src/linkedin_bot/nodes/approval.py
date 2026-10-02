@@ -29,6 +29,11 @@ def approval_node(state: State) -> dict:
         "images": {variant: prompt.alt_text for variant, prompt in images.items()},  # Variante -> Alt-Text
         "carousels": {variant: f"{spec.title} ({len(spec.slides)} Folien)" for variant, spec in carousels.items()},
         "notice": state.get("notice"),
+        "trend": {
+            "status": state.get("trends_status"),
+            "growth": state["selected"].trend_growth,
+            "queries": state.get("trend_queries") or [],
+        },
     })
     action, variant = decision["action"], decision.get("variant", "normal")
 
@@ -69,6 +74,7 @@ def compose_tasks(state: State, variants, previous: bool = False) -> list[Send]:
             research=state["research"],
             previous=state["drafts"][v] if previous else None,
             human_feedback=state.get("human_feedback") if previous else None,
+            trend_queries=state.get("trend_queries") or [],
         ))
         for v in variants
     ]

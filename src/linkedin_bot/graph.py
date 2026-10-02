@@ -11,6 +11,7 @@ from linkedin_bot.config import AppConfig
 from linkedin_bot.db import Repository
 from linkedin_bot.integrations.images import OpenAIImageGenerator
 from linkedin_bot.integrations.linkedin import LinkedInClient
+from linkedin_bot.integrations.trends import GoogleTrends
 from linkedin_bot.models import get_model
 from linkedin_bot.nodes.approval import approval_node, compose_tasks, make_archive, route_after_approval
 from linkedin_bot.nodes.carousel import CarouselRenderer, make_carousel_maker
@@ -22,6 +23,7 @@ from linkedin_bot.nodes.publish import make_publisher
 from linkedin_bot.nodes.research import build_research_agent, make_researcher
 from linkedin_bot.nodes.scorer import make_scorer
 from linkedin_bot.nodes.select import make_selector
+from linkedin_bot.nodes.trends import TrendsClient, make_trend_booster, make_trend_context
 from linkedin_bot.state import VARIANTS, SourceTask, State
 
 ModelFactory = Callable[[AppConfig, str], BaseChatModel]
@@ -36,6 +38,7 @@ def build_graph(
     linkedin: LinkedInClient | None = None,
     image_generator: ImageGenerator | None = None,
     carousel_renderer: CarouselRenderer | None = None,
+    trends_client: TrendsClient | None = None,
 ):
     """Checkpointer ist Pflicht: ohne ihn kann der Freigabe-Interrupt nicht fortgesetzt werden."""
     collectors: dict[str, Callable[[], list]] = {}
@@ -46,6 +49,8 @@ def build_graph(
 
     if research_agent is None:
         research_agent = build_research_agent(cfg, model_factory(cfg, "researcher"))
+    if trends_client is None and cfg.trends.enabled:
+        trends_client = GoogleTrends(cfg.trends.geo, cfg.trends.timeframe)
     if image_generator is None:
         image_generator = OpenAIImageGenerator(cfg.images.model, cfg.images.size, cfg.images.quality, cfg.pricing)
 
@@ -56,7 +61,7 @@ def build_graph(
         return {"items": collectors[task["source"]]()}
 
     def route_after_select(state: State) -> str:
-        return "research" if state.get("selected") else END
+        return "trend_context" if state.get("selected") else END
 
     def fan_out_variants(state: State) -> list[Send]:
         # Normal- und Humor-Version entstehen parallel aus derselben Recherche.
@@ -66,7 +71,9 @@ def build_graph(
     graph.add_node("collect", collect)
     graph.add_node("dedup", make_dedup(repo, cfg.dedupe.ttl_days, cfg.dedupe.similar_title_threshold))
     graph.add_node("scorer", make_scorer(cfg, model_factory(cfg, "scorer"), repo))
+    graph.add_node("trends", make_trend_booster(cfg, trends_client))
     graph.add_node("select", make_selector(cfg, model_factory(cfg, "selector"), repo))
+    graph.add_node("trend_context", make_trend_context(cfg, trends_client))
     graph.add_node("research", make_researcher(research_agent))
     graph.add_node("compose", make_compose(cfg, model_factory(cfg, "writer"), model_factory(cfg, "critic")))
     graph.add_node("hashtags", make_hashtagger(cfg, model_factory(cfg, "hashtags")))
@@ -80,8 +87,10 @@ def build_graph(
     graph.add_conditional_edges(START, fan_out, ["collect"])
     graph.add_edge("collect", "dedup")
     graph.add_edge("dedup", "scorer")
-    graph.add_edge("scorer", "select")
-    graph.add_conditional_edges("select", route_after_select, ["research", END])
+    graph.add_edge("scorer", "trends")
+    graph.add_edge("trends", "select")
+    graph.add_conditional_edges("select", route_after_select, ["trend_context", END])
+    graph.add_edge("trend_context", "research")
     graph.add_conditional_edges("research", fan_out_variants, ["compose"])
     graph.add_edge("compose", "hashtags")
     graph.add_edge("hashtags", "approval")

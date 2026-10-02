@@ -24,4 +24,7 @@ Relevanz 0-{scale}:
 - off_topic ist immer höchstens 3. Dazu zählen insbesondere: allgemeine Sicherheitslücken und Patches,
   Hardware, Consumer-Gadgets, Karrierethemen, Promi-News, Sport, Kriminalfälle, Unglücke.
 
+Gib zu jedem Item außerdem einen kurzen Suchbegriff an (1-3 Wörter), so wie Menschen in Deutschland bei Google
+danach suchen würden – Produkt-, Firmen- oder Gesetzesnamen statt Schlagzeilen.
+
 Bewerte ausschließlich auf Basis von Titel, Quelle und Snippet. Gib für jedes Item genau einen Eintrag mit seinem Index zurück.

@@ -44,7 +44,7 @@ def make_scorer(cfg: AppConfig, model: BaseChatModel, repo: Repository):
             relevance = max(0, min(cfg.scoring.scale, s.relevance))
             weight = cfg.topic_weights[s.category].weight if s.category in cfg.topic_weights else 1.0
             scored.append(ScoredItem(item=items[s.index], relevance=relevance, category=s.category,
-                                     reason=s.reason, weighted=relevance * weight))
+                                     reason=s.reason, weighted=relevance * weight, search_term=s.search_term))
         repo.mark_seen({normalize_url(i.url): i for i in items})
         log.info("%d von %d Items bewertet", len(scored), len(items))
         return {"scored": sorted(scored, key=lambda s: s.weighted, reverse=True)}

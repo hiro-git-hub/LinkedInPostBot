@@ -170,6 +170,17 @@ dedupe:
   ttl_days: 30                              # danach darf eine URL wieder auftauchen
   similar_title_threshold: 0.85            # gleiche Story aus mehreren Quellen zusammenführen
 
+# Google Trends als Verstärker: steigendes Suchinteresse (DE, 7 Tage) gibt Kandidaten einen Ranking-Bonus,
+# steigende Suchanfragen zum gewählten Thema bekommt der Writer als Inspiration. Inoffizielle Schnittstelle –
+# blockt Google, läuft alles ohne Trends weiter. Test aus Telegram: /trends <Begriff>
+trends:
+  enabled: true
+  geo: DE
+  timeframe: now 7-d
+  min_growth: 0.2        # ab +20 % Suchinteresse gibt es einen Bonus
+  max_bonus: 0.2         # höchstens +20 % aufs gewichtete Ranking
+  rising_queries: 5
+
 limits:
   max_age_hours: 108      # ältere RSS-Einträge werden verworfen – passend zum Abstand der Läufe
   max_items_to_score: 100

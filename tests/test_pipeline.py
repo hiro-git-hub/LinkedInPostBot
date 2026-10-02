@@ -7,7 +7,7 @@ from linkedin_bot.nodes.hashtags import clean_tags, split_hashtags
 from linkedin_bot.runtime import pending_steps, resume, start_run
 from linkedin_bot.state import Decision
 
-from conftest import FEED_URL, Models, VariantWriter, draft, make_graph, valid_auth
+from conftest import FEED_URL, FakeTrends, Models, VariantWriter, draft, make_graph, valid_auth
 
 TOPIC = {"Neues Modell": 9, "Ask HN": 3}
 
@@ -327,3 +327,42 @@ def test_incompatible_old_checkpoint_is_not_resumable(cfg, sources):
     assert not is_compatible({"selected": old})
     assert is_compatible({"selected": step.state["selected"]})
     assert is_compatible({})
+
+
+# --- Google Trends ----------------------------------------------------------------------------------
+
+def test_trend_bonus_can_flip_the_topic_and_feeds_the_writer(cfg, sources):
+    # Ohne Trends gewinnt "Neues Modell" (9 > 8); mit +80 % Suchinteresse zieht "Ask HN" vorbei (8 × 1.2 = 9.6).
+    trends = FakeTrends(growth={"Ask HN: Wie deployt ihr?": 0.8}, rising=["deploy fehler", "kubernetes kosten"])
+    models = Models({"Neues Modell": 9, "Ask HN": 8})
+    step = start_run(make_graph(cfg, models, trends=trends))
+
+    assert step.pending["title"] == "Ask HN: Wie deployt ihr?"
+    assert step.pending["trend"] == {"status": "ok", "growth": 0.8, "queries": ["deploy fehler", "kubernetes kosten"]}
+    assert "deploy fehler" in models.writer.prompts["normal"][0]
+    assert ("rising", "Ask HN: Wie deployt ihr?") in trends.calls
+
+
+def test_small_growth_gives_no_bonus(cfg, sources):
+    trends = FakeTrends(growth={"Ask HN: Wie deployt ihr?": 0.1})
+    step = start_run(make_graph(cfg, Models({"Neues Modell": 9, "Ask HN": 8}), trends=trends))
+    assert step.pending["title"] == "Neues Modell veröffentlicht"
+
+
+def test_run_continues_when_google_blocks(cfg, sources):
+    from linkedin_bot.integrations.trends import TrendsUnavailable
+    from linkedin_bot.runtime import render_header
+
+    trends = FakeTrends(error=TrendsUnavailable("Google Trends antwortet mit HTTP 429"))
+    step = start_run(make_graph(cfg, Models(TOPIC), trends=trends))
+    assert step.pending["title"] == "Neues Modell veröffentlicht"
+    assert step.pending["trend"]["status"].endswith("429")
+    assert "Google Trends nicht verfügbar" in render_header(step.pending)
+    assert not any(call[0] == "rising" for call in trends.calls)  # kein zweiter Versuch nach Blockade
+
+
+def test_trends_disabled_makes_no_calls(cfg, sources):
+    cfg.trends.enabled = False
+    trends = FakeTrends()
+    step = start_run(make_graph(cfg, Models(TOPIC), trends=trends))
+    assert step.pending and trends.calls == []

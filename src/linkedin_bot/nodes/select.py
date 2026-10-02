@@ -18,8 +18,11 @@ def blocked_categories(cfg: AppConfig, recent: list[str]) -> set[str]:
 
 
 def format_shortlist(shortlist: list[ScoredItem]) -> str:
+    def trend(s: ScoredItem) -> str:
+        return f" | Google-Suchinteresse {s.trend_growth:+.0%} (7 Tage)" if s.trend_growth is not None else ""
+
     return "\n".join(
-        f"[{i}] {s.relevance}/10 [{s.category}] {s.item.title} ({s.item.source})\n"
+        f"[{i}] {s.relevance}/10 [{s.category}] {s.item.title} ({s.item.source}){trend(s)}\n"
         f"    {s.item.summary[:300]}\n    Warum relevant: {s.reason}"
         for i, s in enumerate(shortlist)
     )

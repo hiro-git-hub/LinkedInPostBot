@@ -19,6 +19,7 @@ from linkedin_bot.config import AppConfig
 from linkedin_bot.errors import describe_error
 from linkedin_bot.healthcheck import HEARTBEAT_INTERVAL_SECONDS, write_heartbeat
 from linkedin_bot.integrations.linkedin import LinkedInClient, LinkedInError, code_from_callback, params_from_url
+from linkedin_bot.integrations.trends import GoogleTrends, TrendsUnavailable
 from linkedin_bot.nodes.approval import PLACEHOLDER, VARIANT_LABELS
 from linkedin_bot.nodes.hashtags import hashtag_line
 from linkedin_bot.nodes.carousel import carousel_key
@@ -159,7 +160,8 @@ class ApprovalBot:
             )
         elif self.authorized(update):
             await update.message.reply_text(
-                "Bereit. /run startet sofort einen Lauf, /offen zeigt offene Entwürfe erneut, /login meldet bei LinkedIn an."
+                "Bereit. /run startet sofort einen Lauf, /offen zeigt offene Entwürfe erneut, /login meldet bei LinkedIn an, "
+                "/trends <Begriff> prüft Google Trends."
             )
 
     async def cmd_run(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -194,6 +196,23 @@ class ApprovalBot:
             return
         await asyncio.to_thread(self.repo.save_linkedin_auth, auth)
         await update.message.reply_text(f"✅ Angemeldet als {auth.name}, gültig bis {auth.expires_at:%d.%m.%Y}.")
+
+    async def cmd_trends(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """Diagnose vom Server aus: lässt Google Trends uns durch, und was sagt es zum Begriff?"""
+        if not self.authorized(update):
+            return
+        term = " ".join(context.args) or "Shopware"
+        await update.message.reply_text(f"📈 Frage Google Trends nach »{term}« …")
+        client = GoogleTrends(self.cfg.trends.geo, self.cfg.trends.timeframe)
+        try:
+            growth = (await asyncio.to_thread(client.growth, [term]))[term]
+            rising = await asyncio.to_thread(client.rising_queries, term, self.cfg.trends.rising_queries)
+        except TrendsUnavailable as exc:
+            await update.message.reply_text(f"❌ {exc}\nDer Bot läuft trotzdem normal – nur ohne Trend-Bonus.")
+            return
+        lines = [f"✅ Google Trends erreichbar.", f"Suchinteresse »{term}«: {growth:+.0%} (letzte 2 Tage vs. davor, {self.cfg.trends.geo})"]
+        lines.append("Steigende Suchen: " + (", ".join(rising) if rising else "keine"))
+        await update.message.reply_text("\n".join(lines))
 
     async def cmd_pending(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         if not self.authorized(update):
@@ -299,6 +318,7 @@ class ApprovalBot:
         app.add_handler(CommandHandler("run", self.cmd_run))
         app.add_handler(CommandHandler("offen", self.cmd_pending))
         app.add_handler(CommandHandler("login", self.cmd_login))
+        app.add_handler(CommandHandler("trends", self.cmd_trends))
         app.add_handler(CallbackQueryHandler(self.on_button))
         app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, self.on_text))
         app.add_error_handler(self.on_error)

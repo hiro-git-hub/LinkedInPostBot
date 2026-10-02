@@ -120,6 +120,15 @@ class DedupeConfig(BaseModel):
     similar_title_threshold: float = 0.85
 
 
+class TrendsConfig(BaseModel):
+    enabled: bool = False
+    geo: str = "DE"
+    timeframe: str = "now 7-d"
+    min_growth: float = 0.2   # ab +20 % Suchinteresse gibt es einen Bonus
+    max_bonus: float = 0.2    # höchstens +20 % aufs gewichtete Ranking
+    rising_queries: int = 5   # steigende Suchanfragen als Kontext für den Writer
+
+
 class LimitsConfig(BaseModel):
     max_age_hours: int = 48
     max_items_to_score: int = 100
@@ -165,6 +174,7 @@ class AppConfig(BaseModel):
     carousel: CarouselConfig = Field(default_factory=CarouselConfig)
     sources: SourcesConfig
     dedupe: DedupeConfig = Field(default_factory=DedupeConfig)
+    trends: TrendsConfig = Field(default_factory=TrendsConfig)
     limits: LimitsConfig = Field(default_factory=LimitsConfig)
     schedule: ScheduleConfig = Field(default_factory=ScheduleConfig)
     linkedin: LinkedInConfig = Field(default_factory=LinkedInConfig)

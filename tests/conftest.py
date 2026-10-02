@@ -104,10 +104,30 @@ def fake_scores(relevance: dict[str, int]):
         titles = [line for line in messages[-1].content.splitlines() if line.startswith("[")]
         return ScoreBatch(scores=[
             ItemScore(index=i, relevance=next((v for k, v in relevance.items() if k in t), 0),
-                      category="ki_entwicklung", reason="weil")
+                      category="ki_entwicklung", reason="weil", search_term=t.split("]")[1].split("(")[0].strip())
             for i, t in enumerate(titles)
         ])
     return score
+
+
+class FakeTrends:
+    """Wachstum je Suchbegriff vorgeben; error=TrendsUnavailable simuliert Googles Drosselung."""
+
+    def __init__(self, growth: dict[str, float] | None = None, rising: list[str] | None = None, error=None):
+        self.growth_by_term, self.rising, self.error = growth or {}, rising or [], error
+        self.calls: list = []
+
+    def growth(self, terms):
+        self.calls.append(("growth", terms))
+        if self.error:
+            raise self.error
+        return {t: self.growth_by_term.get(t, 0.0) for t in terms}
+
+    def rising_queries(self, term, limit=5):
+        self.calls.append(("rising", term))
+        if self.error:
+            raise self.error
+        return self.rising[:limit]
 
 
 def critic_by_text(reject_if: Callable[[str], bool] = lambda text: False):
@@ -184,9 +204,10 @@ def sources():
         yield respx
 
 
-def make_graph(cfg, models, repo=None, calls=None, linkedin=None):
+def make_graph(cfg, models, repo=None, calls=None, linkedin=None, trends=None):
     return build_graph(
         cfg, repo if repo is not None else InMemoryRepository(), InMemorySaver(), models,
         research_agent=fake_research_agent(calls if calls is not None else []),
         linkedin=linkedin, image_generator=fake_image, carousel_renderer=fake_carousel,
+        trends_client=trends or FakeTrends(),  # nie echt bei Google anfragen
     )
