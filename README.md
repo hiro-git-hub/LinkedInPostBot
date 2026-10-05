@@ -79,3 +79,8 @@ Solange ein `[EIGENE ERFAHRUNG: …]`-Platzhalter im Text steht, lässt sich die
 | `src/linkedin_bot/integrations/images.py` | Bildgenerierung (OpenAI, Modell in `config.yaml` → `images`) |
 | `src/linkedin_bot/login.py` | Browser-Login mit lokalem Callback-Server |
 | `src/linkedin_bot/collectors/`, `tools/` | RSS, Hacker News, Tavily-Suche, Artikel-Extraktion |
+
+## Lizenz
+
+[MIT](LICENSE). Ausgenommen sind die mitgelieferten Schriften in `src/linkedin_bot/assets/fonts` (Inter, JetBrains Mono),
+die unter der SIL Open Font License stehen – siehe die Lizenzdateien dort.

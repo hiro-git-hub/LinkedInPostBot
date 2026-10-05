@@ -2,9 +2,11 @@
 name = "linkedin-bot"
 version = "0.1.0"
 description = "LangGraph-Pipeline: KI-/Dev-News -> LinkedIn-Post-Entwürfe"
+license = "MIT"
+license-files = ["LICENSE"]
 readme = "README.md"
 authors = [
-    { name = "Jonas Fichtner", email = "jonas.fichtner@digitalwert.de" }
+    { name = "Jonas Fichtner", email = "22772200+hiro-git-hub@users.noreply.github.com" }
 ]
 requires-python = ">=3.12"
 dependencies = [
